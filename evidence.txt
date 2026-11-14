@@ -1,0 +1,52 @@
+﻿SQLite 3.50.4
+
+1. Design and constraints
+Rejected: UNIQUE constraint failed: registration.student_id, registration.offering_id
+Rejected: CHECK constraint failed: score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100)
+Rejected: FOREIGN KEY constraint failed
+
+2. Grade roster before indexing
+Plan: [(4, 0, 218, 'SCAN registration USING INDEX sqlite_autoindex_registration_1')]
+Rows: 500; median: 3.876 ms
+First five rows: [(100, 52), (200, 51), (300, 50), (400, 49), (500, 48)]
+
+Grade roster after indexing
+Plan: [(3, 0, 56, 'SEARCH registration USING COVERING INDEX registration_roster (offering_id=?)')]
+Rows: 500; median: 0.459 ms
+
+2b. Semester GPA Calculation (Student 100)
+Student: Student 100 (ID: 100) | Term: 2026/2027 Semester 1
+Courses Taken: 3 | Total Credits: 8 | Quality Points: 32.00 | Semester GPA: 4.00 / 5.00
+
+3. Transactions and concurrency
+Reader before commit: 52
+Competing writer: database is locked
+Reader after commit: 85
+Reader after rollback: 85
+
+4. Document storage and retrieval
+{
+  "student_id": 100,
+  "term": "2026/2027 Semester 1",
+  "results": [
+    {
+      "course": "MIT8101",
+      "title": "Advanced Software Engineering",
+      "section": 1,
+      "score": 78
+    },
+    {
+      "course": "MIT8103",
+      "title": "Advanced Database Systems",
+      "section": 1,
+      "score": 85
+    },
+    {
+      "course": "MIT8105",
+      "title": "Research Methods in IT",
+      "section": 1,
+      "score": 68
+    }
+  ]
+}
+Embedded course scores: [(85,)]
