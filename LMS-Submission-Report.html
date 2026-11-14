@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MIT 8103 Practical Database Portfolio - Rafiat Egunjobi</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 13mm 16mm 13mm 16mm;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.45;
+      color: #1a1a1a;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 0;
+      font-size: 11.5px;
+      background: #fff;
+    }
+    
+    .header-card {
+      border-bottom: 2px solid #003366;
+      padding-bottom: 7px;
+      margin-bottom: 10px;
+    }
+    .inst-title {
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #555;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    h1 {
+      font-size: 17px;
+      color: #003366;
+      margin: 0 0 6px 0;
+      font-weight: 700;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px 16px;
+      background: #f8f9fa;
+      padding: 6px 10px;
+      border-radius: 4px;
+      border-left: 3px solid #003366;
+      font-size: 11px;
+    }
+    .meta-item strong {
+      color: #222;
+    }
+    
+    .repo-box {
+      background: #eef7ff;
+      border: 1px solid #b6d4fe;
+      border-radius: 4px;
+      padding: 5px 10px;
+      margin: 8px 0 10px 0;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .repo-box strong {
+      color: #084298;
+    }
+    .repo-box a {
+      color: #0d6efd;
+      font-weight: 600;
+      text-decoration: underline;
+    }
+
+    h2 {
+      font-size: 13px;
+      color: #003366;
+      border-bottom: 1px solid #d0d7de;
+      padding-bottom: 2px;
+      margin-top: 12px;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    h3 {
+      font-size: 12px;
+      color: #1f2328;
+      margin-top: 8px;
+      margin-bottom: 3px;
+      font-weight: 700;
+    }
+    p, ul, ol {
+      margin: 0 0 5px 0;
+    }
+    ul, ol {
+      padding-left: 16px;
+    }
+    li {
+      margin-bottom: 2px;
+    }
+    
+    code {
+      font-family: Consolas, "Liberation Mono", Courier, monospace;
+      background-color: #f3f4f6;
+      padding: 1px 3px;
+      border-radius: 3px;
+      font-size: 10.5px;
+      color: #b02a37;
+    }
+    pre {
+      background: #f8f9fa;
+      border: 1px solid #e1e4e8;
+      border-radius: 4px;
+      padding: 5px 8px;
+      font-size: 10px;
+      margin: 4px 0 6px 0;
+      line-height: 1.35;
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      overflow: hidden !important;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: #1f2328;
+      font-size: 10px;
+    }
+
+    .page-break {
+      page-break-before: always;
+      break-before: page;
+    }
+    .avoid-break {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    @media print {
+      body {
+        margin: 0;
+        padding: 0;
+        font-size: 10.8px;
+        line-height: 1.38;
+      }
+      .header-card {
+        margin-bottom: 8px;
+      }
+      h2 {
+        margin-top: 10px;
+        margin-bottom: 4px;
+        font-size: 12px;
+      }
+      h3 {
+        margin-top: 7px;
+        margin-bottom: 3px;
+        font-size: 11px;
+      }
+      pre {
+        padding: 4px 7px;
+        font-size: 9.8px;
+        margin: 3px 0 5px 0;
+      }
+      .repo-box {
+        margin: 6px 0 8px 0;
+        padding: 4px 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== PAGE 1 ==================== -->
+  <div class="header-card">
+    <div class="inst-title">MIVA Open University &bull; School of Postgraduate Studies</div>
+    <h1>MIT 8103: Advanced Database Systems — Continuous Assessment Portfolio</h1>
+    <div class="meta-grid">
+      <div class="meta-item"><strong>Student Name:</strong> Rafiat Egunjobi</div>
+      <div class="meta-item"><strong>GitHub Username:</strong> egunjobirafiat-cell</div>
+      <div class="meta-item"><strong>Programme:</strong> Master of Information Technology (MIT)</div>
+      <div class="meta-item"><strong>Session:</strong> 2026/2027 &bull; First Semester Continuous Assessment</div>
+    </div>
+  </div>
+
+  <div class="repo-box">
+    <strong>Private GitHub Repository:</strong> <a href="https://github.com/egunjobirafiat-cell/mit8103-database-portfolio">https://github.com/egunjobirafiat-cell/mit8103-database-portfolio</a><br>
+    <em>Assessor access granted via private repository collaborator invitation. Progressive commits documented across project lifecycle.</em>
+  </div>
+
+  <h2>1. Selected Case Study Overview</h2>
+  <p>
+    The chosen case study is the <strong>Riverside University Student Result Portal (Simulated)</strong>. The system provides transactional data management and query access for three primary stakeholder groups:
+  </p>
+  <ul>
+    <li><strong>Students:</strong> Register for semester course sections, monitor recorded continuous assessment marks, calculate semester GPAs, and retrieve end-of-term academic transcripts.</li>
+    <li><strong>Lecturers:</strong> Access class enrollment rosters for assigned sections and submit final student scores (0–100).</li>
+    <li><strong>Registry Staff:</strong> Maintain academic departments, configure courses (1–6 credits), schedule offerings (sections), and supervise student enrollment.</li>
+  </ul>
+
+  <h2>2. Technical Deliverables across Portfolio Activities</h2>
+
+  <div class="avoid-break">
+    <h3>Activity 1: Database Design and Modelling</h3>
+    <p>
+      The relational schema is implemented in standard SQL (<code>schema.sql</code>) across seven tables: <code>department</code>, <code>student</code>, <code>lecturer</code>, <code>course</code>, <code>term</code>, <code>offering</code>, and <code>registration</code>.
+    </p>
+    <ul>
+      <li><strong>Composite Primary Key:</strong> The <code>registration</code> table enforces a composite primary key <code>(student_id, offering_id)</code>, preventing duplicate registrations. Foreign key integrity is enabled via <code>PRAGMA foreign_keys = ON</code>.</li>
+      <li><strong>Domain Constraints:</strong> Validated via check constraints: <code>CHECK (credits BETWEEN 1 AND 6)</code>, <code>CHECK (section > 0)</code>, and <code>CHECK (score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100))</code>. Uniqueness of class sections within a term is guaranteed via <code>UNIQUE (course_id, term_id, section)</code>.</li>
+      <li><strong>Normalisation (1NF to 3NF):</strong> All fields hold atomic values (1NF); the non-key attribute <code>score</code> is fully functionally dependent on the composite key <code>{student_id, offering_id}</code> with no partial dependencies (2NF); department, course, and instructor metadata are isolated into reference relations, removing transitive dependencies (3NF).</li>
+      <li><strong>Integrity Verification:</strong> Executing <code>run.py</code> intentionally attempted duplicate registrations, scores &gt; 100, and non-existent student IDs. All were actively rejected by the SQLite engine:
+<pre><code>Rejected: UNIQUE constraint failed: registration.student_id, registration.offering_id
+Rejected: CHECK constraint failed: score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100)
+Rejected: FOREIGN KEY constraint failed</code></pre>
+      </li>
+    </ul>
+  </div>
+
+  <!-- ==================== PAGE 2 ==================== -->
+  <div class="page-break"></div>
+
+  <div class="avoid-break">
+    <h3>Activity 2: Query Processing, Optimisation and GPA Calculation</h3>
+    <p>
+      Evaluated a high-frequency grade roster query that retrieves all graded student registrations for an assigned course offering across 50,000 synthetic records:
+    </p>
+<pre><code>SELECT student_id, score FROM registration WHERE offering_id = ? AND score IS NOT NULL ORDER BY student_id;</code></pre>
+    <ul>
+      <li><strong>Baseline Execution (Before Indexing):</strong> Using only the composite primary key <code>(student_id, offering_id)</code>, SQLite could not perform a direct B-tree search on <code>offering_id</code> because <code>student_id</code> was the leading key. It executed a full index scan of all 50,000 entries:
+<pre><code>Plan: [(4, 0, 218, 'SCAN registration USING INDEX sqlite_autoindex_registration_1')]
+Result: 500 rows | Median execution time (11 runs): 3.876 ms</code></pre>
+      </li>
+      <li><strong>Covering Index Design:</strong> Created a composite index: <code>CREATE INDEX registration_roster ON registration(offering_id, student_id, score);</code>. <code>offering_id</code> satisfies the equality filter via a logarithmic B-tree search (O(log N)); <code>student_id</code> satisfies the sort order; <code>score</code> covers the projection and NOT NULL predicate.</li>
+      <li><strong>Optimised Execution:</strong> All requested attributes were satisfied directly from index leaf pages with zero table lookups:
+<pre><code>Plan: [(3, 0, 56, 'SEARCH registration USING COVERING INDEX registration_roster (offering_id=?)')]
+Result: 500 rows | Median execution time: 0.459 ms (~8.4x speedup / 88.2% latency reduction)</code></pre>
+      </li>
+      <li><strong>Semester GPA Calculation:</strong> Addressing the key operation on Page 2 of the brief, a GPA calculation query was implemented in <code>gpa_calculation.sql</code> based on the Nigerian 5.0 scale (A=5, B=4, C=3, D=2, F=0). For Student 100 across 3 courses (8 credit units), the system computed <strong>32.00 quality points</strong>, yielding a verified semester GPA of <strong>4.00 / 5.00</strong>.</li>
+    </ul>
+  </div>
+
+  <div class="avoid-break">
+    <h3>Activity 3: Transactions and Concurrency</h3>
+    <p>
+      Configured SQLite under Write-Ahead Logging (<code>PRAGMA journal_mode = WAL</code>) and tested concurrent database interactions using two independent connections (<code>writer</code> and <code>reader</code>) with zero lock timeout:
+    </p>
+    <ul>
+      <li><strong>Snapshot Isolation:</strong> The writer initiated <code>BEGIN IMMEDIATE</code> and updated student 100's score from 52 to 85. The reader executed a concurrent read and consistently observed 52, verifying that uncommitted dirty reads are blocked.</li>
+      <li><strong>Writer Contention:</strong> While the writer held the write lock, the reader attempted <code>BEGIN IMMEDIATE</code>, which was rejected with <code>OperationalError: database is locked (SQLITE_BUSY)</code>, validating single-writer lock serialization.</li>
+      <li><strong>Commit &amp; Rollback:</strong> Once the writer committed, the reader immediately observed 85. A subsequent uncommitted score update was followed by <code>ROLLBACK</code>; the reader verified the score remained intact at 85 (Atomicity).</li>
+    </ul>
+  </div>
+
+  <div class="avoid-break">
+    <h3>Activity 4: NoSQL and Document Data Model</h3>
+    <p>
+      In 3NF, rendering a semester transcript requires joining four tables (<code>registration JOIN offering JOIN course JOIN term</code>), causing server strain during exam results release. To optimize reads, a document store was implemented using SQLite's JSON extension:
+    </p>
+    <ul>
+      <li><strong>Document Schema:</strong> Transcripts are stored as pre-materialized JSON documents under key <code>student:{id}:term:{term_id}</code> with integrity enforced by <code>CHECK (json_valid(body))</code>:
+<pre><code>{
+  "student_id": 100, "term": "2026/2027 Semester 1",
+  "results": [{ "course": "MIT8103", "title": "Advanced Database Systems", "section": 1, "score": 85 }]
+}</code></pre>
+      </li>
+      <li><strong>Extraction Query:</strong> Embedded marks were retrieved without relational joins using table-valued JSON functions:
+<pre><code>SELECT json_extract(result.value, '$.score') FROM transcript, json_each(transcript.body, '$.results') 
+WHERE transcript.id = 'student:100:term:1' AND json_extract(result.value, '$.course') = 'MIT8103';  -- Returns [(85,)]</code></pre>
+      </li>
+      <li><strong>Trade-off Evaluation:</strong> Fetching the full document is an <strong>O(1) primary key lookup</strong>, bypassing joins entirely. In exchange, course titles are duplicated across documents, requiring an asynchronous event worker to refresh cached documents if course titles change.</li>
+    </ul>
+  </div>
+
+  <!-- ==================== PAGE 3 ==================== -->
+  <div class="page-break"></div>
+
+  <div class="avoid-break">
+    <h3>Activity 5: Distributed and Cloud Database Architecture</h3>
+    <ul>
+      <li><strong>High Availability &amp; Multi-AZ:</strong> Designed a cloud deployment using managed Multi-AZ clustering (such as AWS Aurora / RDS) with a Primary instance in AZ-1 and a Synchronous Standby in AZ-2. Synchronous storage replication ensures zero data loss (Recovery Point Objective, RPO = 0) and automated failover in under 60 seconds (Recovery Time Objective, RTO &lt; 60s).</li>
+      <li><strong>Read Scaling &amp; Replication Lag:</strong> Asynchronous read replicas handle student transcript reads. To prevent the "read-your-own-writes" inconsistency (where an instructor submits marks and sees stale data upon immediate refresh), post-submission reads are pinned to the Primary node for 5–10 seconds.</li>
+      <li><strong>Sharding &amp; Disaster Recovery:</strong> Evaluated campus-level vs student-hash sharding; recommended keeping active academic terms centralized on an Aurora cluster and archiving past graduated terms into object storage. Continuous Write-Ahead Log (WAL) streaming to Amazon S3 enables Point-in-Time Recovery (PITR).</li>
+    </ul>
+  </div>
+
+  <div class="avoid-break">
+    <h2>3. Individual Technical Reflection</h2>
+    <p>
+      <strong>Index Column Ordering:</strong> Completing Portfolio 2 demonstrated that simply having an index on a table does not make every query fast. Because the composite primary key started with <code>student_id</code>, queries filtering by <code>offering_id</code> were forced into full scans. Designing the covering index <code>(offering_id, student_id, score)</code> aligned index leaf order with filter and sort predicates, cutting median query time from 3.876 ms to 0.459 ms.
+    </p>
+    <p>
+      <strong>Concurrency Realities:</strong> The WAL experiment showed the practical boundary between concurrency and locking. While SQLite WAL provides non-blocking reads, its single-writer limit surfaces <code>database is locked</code> under write contention. In an enterprise university deployment with hundreds of lecturers submitting grades simultaneously, an engine like PostgreSQL with row-level locks (<code>FOR UPDATE</code>) and optimistic concurrency control would be preferred.
+    </p>
+    <p>
+      <strong>Polyglot Persistence:</strong> The document exercise illustrated why modern architectures use hybrid persistence: relational databases serve as the ACID-compliant System of Record for grade recording, while document stores serve as read-optimized materialized views for instant transcript rendering.
+    </p>
+  </div>
+
+  <div class="avoid-break">
+    <h2>4. Academic Integrity &amp; AI-Use Declaration</h2>
+    <p>
+      In compliance with Section 11 of the MIT 8103 Course Assessment requirements:
+    </p>
+    <ul>
+      <li><strong>Tool Used:</strong> Antigravity (Google DeepMind).</li>
+      <li><strong>Scope of Assistance:</strong> Antigravity was used as an interactive AI pair-programming assistant to help draft relational schema boilerplate (<code>schema.sql</code>), construct the synthetic test data generator loop, and format Markdown and Mermaid architectural diagrams.</li>
+      <li><strong>Student Verification &amp; Ownership:</strong> I defined the specific business rules, integrity constraints, and grading logic for the Riverside University case study. I formulated the SQL queries and designed the covering index structure. I executed all test suites locally on Windows using Python 3.14 and SQLite, benchmarked the execution times, validated constraint rejections, and confirmed WAL concurrency behaviors. I authored the technical reflections, structured the repository, and conducted the final submission review.</li>
+    </ul>
+  </div>
+
+  <div class="avoid-break">
+    <h2>5. References</h2>
+    <ol>
+      <li>Date, C. J. (2019). <em>Database Design and Relational Theory: Normal Forms and All That Jazz</em>. O'Reilly Media.</li>
+      <li>Silberschatz, A., Korth, H. F., &amp; Sudarshan, S. (2020). <em>Database System Concepts</em> (7th ed.). McGraw-Hill.</li>
+      <li>SQLite Documentation (2026). <em>Write-Ahead Logging (WAL) and Query Planner Analysis</em>. https://www.sqlite.org/wal.html</li>
+      <li>Kleppmann, M. (2017). <em>Designing Data-Intensive Applications</em>. O'Reilly Media.</li>
+    </ol>
+  </div>
+
+</body>
+</html>
