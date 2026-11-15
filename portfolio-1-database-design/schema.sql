@@ -35,7 +35,7 @@ CREATE TABLE course (
     department_id INTEGER NOT NULL,
     code TEXT NOT NULL UNIQUE,
     title TEXT NOT NULL,
-    credits INTEGER NOT NULL CHECK (credits BETWEEN 1 AND 6),
+    credits INTEGER NOT NULL CHECK (typeof(credits) = 'integer' AND credits BETWEEN 1 AND 6),
     FOREIGN KEY (department_id) REFERENCES department(id)
 );
 
@@ -51,7 +51,7 @@ CREATE TABLE offering (
     course_id INTEGER NOT NULL,
     term_id INTEGER NOT NULL,
     lecturer_id INTEGER NOT NULL,
-    section INTEGER NOT NULL CHECK (section > 0),
+    section INTEGER NOT NULL CHECK (typeof(section) = 'integer' AND section > 0),
     FOREIGN KEY (course_id) REFERENCES course(id),
     FOREIGN KEY (term_id) REFERENCES term(id),
     FOREIGN KEY (lecturer_id) REFERENCES lecturer(id),

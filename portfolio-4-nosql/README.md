@@ -18,7 +18,8 @@ To eliminate join overhead on high-frequency read paths, I implemented a **Docum
 
 ---
 
-## 2. Document Data Model Design
+## 2. Document Data Model Design (Single Course Excerpt)
+*Note: The snippet below illustrates an excerpt from the complete 3-course semester document generated in `run.py`.*
 
 Rather than distributing student marks across separate tables, all course results for a student's term are embedded in a single hierarchical JSON document:
 
@@ -54,7 +55,7 @@ Using SQLite's built-in JSON1 extension, a dedicated `transcript` document store
 ```sql
 CREATE TABLE transcript (
     id TEXT PRIMARY KEY,
-    body TEXT NOT NULL CHECK (json_valid(body))
+    body TEXT NOT NULL CHECK (json_valid(body))  -- Validates RFC-8259 syntax; semantic fields are validated via application logic or json_extract() constraints
 );
 ```
 
@@ -90,7 +91,7 @@ Embedded course scores: [(85,)]
 
 ## 4. Query Complexity and Performance Analysis
 
-- **Full Transcript Retrieval:** Fetching an entire student transcript (`SELECT body FROM transcript WHERE id = ?`) is an **O(1) primary key point lookup**. It retrieves the complete pre-rendered result slip in a single read operation, completely bypassing relational joins.
+- **Full Transcript Retrieval:** Fetching an entire student transcript (`SELECT body FROM transcript WHERE id = ?`) is a direct primary key B-tree index seek (O(log N) in SQLite; O(1) in dedicated key-value caches like Redis). It retrieves the complete pre-rendered result slip in a single read operation, completely bypassing relational joins.
 - **Embedded Array Filtering:** Querying a specific course mark inside the document via `json_extract()` and `json_each()` performs an in-memory scan of that individual student's courses (typically 4–6 courses per term), which is computationally trivial compared to joining 50,000-row relational tables.
 
 ---

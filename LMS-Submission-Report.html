@@ -170,7 +170,6 @@
 </head>
 <body>
 
-  <!-- ==================== PAGE 1 ==================== -->
   <div class="header-card">
     <div class="inst-title">MIVA Open University &bull; School of Postgraduate Studies</div>
     <h1>MIT 8103: Advanced Database Systems — Continuous Assessment Portfolio</h1>
@@ -183,8 +182,8 @@
   </div>
 
   <div class="repo-box">
-    <strong>Private GitHub Repository:</strong> <a href="https://github.com/egunjobirafiat-cell/mit8103-database-portfolio">https://github.com/egunjobirafiat-cell/mit8103-database-portfolio</a><br>
-    <em>Assessor access granted via private repository collaborator invitation. Progressive commits documented across project lifecycle.</em>
+    <strong>GitHub Repository (Public):</strong> <a href="https://github.com/egunjobirafiat-cell/mit8103-database-portfolio">https://github.com/egunjobirafiat-cell/mit8103-database-portfolio</a><br>
+    <em>Public repository access enabled for assessor review. Progressive commits documented across project lifecycle.</em>
   </div>
 
   <h2>1. Selected Case Study Overview</h2>
@@ -211,13 +210,11 @@
       <li><strong>Integrity Verification:</strong> Executing <code>run.py</code> intentionally attempted duplicate registrations, scores &gt; 100, and non-existent student IDs. All were actively rejected by the SQLite engine:
 <pre><code>Rejected: UNIQUE constraint failed: registration.student_id, registration.offering_id
 Rejected: CHECK constraint failed: score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100)
-Rejected: FOREIGN KEY constraint failed</code></pre>
+Rejected: FOREIGN KEY constraint failed
+Rejected: CHECK constraint failed: typeof(credits) = 'integer' AND credits BETWEEN 1 AND 6</code></pre>
       </li>
     </ul>
   </div>
-
-  <!-- ==================== PAGE 2 ==================== -->
-  <div class="page-break"></div>
 
   <div class="avoid-break">
     <h3>Activity 2: Query Processing, Optimisation and GPA Calculation</h3>
@@ -240,12 +237,14 @@ Result: 500 rows | Median execution time: 0.459 ms (~8.4x speedup / 88.2% latenc
   </div>
 
   <div class="avoid-break">
-    <h3>Activity 3: Transactions and Concurrency</h3>
+    <!-- ==================== PAGE 2 ==================== -->
+  <div class="page-break"></div>
+  <h3>Activity 3: Transactions and Concurrency</h3>
     <p>
       Configured SQLite under Write-Ahead Logging (<code>PRAGMA journal_mode = WAL</code>) and tested concurrent database interactions using two independent connections (<code>writer</code> and <code>reader</code>) with zero lock timeout:
     </p>
     <ul>
-      <li><strong>Snapshot Isolation:</strong> The writer initiated <code>BEGIN IMMEDIATE</code> and updated student 100's score from 52 to 85. The reader executed a concurrent read and consistently observed 52, verifying that uncommitted dirty reads are blocked.</li>
+      <li><strong>Snapshot Isolation &amp; Repeatable Reads:</strong> The reader opened an explicit transaction (<code>BEGIN</code>) and recorded student 100's score (52). While the read transaction remained open, the writer initiated <code>BEGIN IMMEDIATE</code>, updated score to 85, and committed. The reader queried again inside the same open transaction and consistently observed 52, proving in-flight snapshot repeatability. Once the reader completed its transaction, a fresh read observed 85.</li>
       <li><strong>Writer Contention:</strong> While the writer held the write lock, the reader attempted <code>BEGIN IMMEDIATE</code>, which was rejected with <code>OperationalError: database is locked (SQLITE_BUSY)</code>, validating single-writer lock serialization.</li>
       <li><strong>Commit &amp; Rollback:</strong> Once the writer committed, the reader immediately observed 85. A subsequent uncommitted score update was followed by <code>ROLLBACK</code>; the reader verified the score remained intact at 85 (Atomicity).</li>
     </ul>
@@ -257,7 +256,7 @@ Result: 500 rows | Median execution time: 0.459 ms (~8.4x speedup / 88.2% latenc
       In 3NF, rendering a semester transcript requires joining four tables (<code>registration JOIN offering JOIN course JOIN term</code>), causing server strain during exam results release. To optimize reads, a document store was implemented using SQLite's JSON extension:
     </p>
     <ul>
-      <li><strong>Document Schema:</strong> Transcripts are stored as pre-materialized JSON documents under key <code>student:{id}:term:{term_id}</code> with integrity enforced by <code>CHECK (json_valid(body))</code>:
+      <li><strong>Document Schema (Single Course Excerpt):</strong> Transcripts are stored as pre-materialized JSON documents under key <code>student:{id}:term:{term_id}</code> with RFC-8259 syntax enforced by <code>CHECK (json_valid(body))</code> <em>(excerpt shown; full document in run.py contains all 3 semester courses)</em>:
 <pre><code>{
   "student_id": 100, "term": "2026/2027 Semester 1",
   "results": [{ "course": "MIT8103", "title": "Advanced Database Systems", "section": 1, "score": 85 }]
@@ -267,24 +266,23 @@ Result: 500 rows | Median execution time: 0.459 ms (~8.4x speedup / 88.2% latenc
 <pre><code>SELECT json_extract(result.value, '$.score') FROM transcript, json_each(transcript.body, '$.results') 
 WHERE transcript.id = 'student:100:term:1' AND json_extract(result.value, '$.course') = 'MIT8103';  -- Returns [(85,)]</code></pre>
       </li>
-      <li><strong>Trade-off Evaluation:</strong> Fetching the full document is an <strong>O(1) primary key lookup</strong>, bypassing joins entirely. In exchange, course titles are duplicated across documents, requiring an asynchronous event worker to refresh cached documents if course titles change.</li>
+      <li><strong>Trade-off Evaluation:</strong> Fetching the full document is a direct primary key B-tree index seek (<strong>O(log N)</strong> in SQLite; O(1) in dedicated key-value stores like Redis), bypassing relational joins entirely. In exchange, course titles are duplicated across documents, requiring an asynchronous event worker to refresh cached documents if course titles change.</li>
     </ul>
   </div>
-
-  <!-- ==================== PAGE 3 ==================== -->
-  <div class="page-break"></div>
 
   <div class="avoid-break">
     <h3>Activity 5: Distributed and Cloud Database Architecture</h3>
     <ul>
-      <li><strong>High Availability &amp; Multi-AZ:</strong> Designed a cloud deployment using managed Multi-AZ clustering (such as AWS Aurora / RDS) with a Primary instance in AZ-1 and a Synchronous Standby in AZ-2. Synchronous storage replication ensures zero data loss (Recovery Point Objective, RPO = 0) and automated failover in under 60 seconds (Recovery Time Objective, RTO &lt; 60s).</li>
-      <li><strong>Read Scaling &amp; Replication Lag:</strong> Asynchronous read replicas handle student transcript reads. To prevent the "read-your-own-writes" inconsistency (where an instructor submits marks and sees stale data upon immediate refresh), post-submission reads are pinned to the Primary node for 5–10 seconds.</li>
+      <li><strong>High Availability &amp; Multi-AZ:</strong> Designed a cloud deployment using managed Amazon Aurora Multi-AZ clustering (PostgreSQL/MySQL Compatible) with a Primary instance in AZ-1 and a Synchronous Standby in AZ-2. Synchronous distributed storage quorum replication ensures zero data loss (RPO = 0) and automated failover in under 30–60 seconds (RTO &lt; 60s, substantiated by Aurora's shared storage layer compared to 60–120s for traditional RDS instances).</li>
+      <li><strong>Read Scaling &amp; Replication Lag:</strong> Asynchronous read replicas handle student transcript reads. To prevent the "read-your-own-writes" inconsistency (where an instructor submits marks and sees stale data upon immediate refresh), post-submission reads are pinned to the Primary node for 5–10 seconds, combined with Log Sequence Number (LSN) causal tracking for monotonic consistency during replication lag spikes.</li>
       <li><strong>Sharding &amp; Disaster Recovery:</strong> Evaluated campus-level vs student-hash sharding; recommended keeping active academic terms centralized on an Aurora cluster and archiving past graduated terms into object storage. Continuous Write-Ahead Log (WAL) streaming to Amazon S3 enables Point-in-Time Recovery (PITR).</li>
     </ul>
   </div>
 
   <div class="avoid-break">
-    <h2>3. Individual Technical Reflection</h2>
+    <!-- ==================== PAGE 3 ==================== -->
+  <div class="page-break"></div>
+  <h2>3. Individual Technical Reflection</h2>
     <p>
       <strong>Index Column Ordering:</strong> Completing Portfolio 2 demonstrated that simply having an index on a table does not make every query fast. Because the composite primary key started with <code>student_id</code>, queries filtering by <code>offering_id</code> were forced into full scans. Designing the covering index <code>(offering_id, student_id, score)</code> aligned index leaf order with filter and sort predicates, cutting median query time from 3.876 ms to 0.459 ms.
     </p>
@@ -294,6 +292,55 @@ WHERE transcript.id = 'student:100:term:1' AND json_extract(result.value, '$.cou
     <p>
       <strong>Polyglot Persistence:</strong> The document exercise illustrated why modern architectures use hybrid persistence: relational databases serve as the ACID-compliant System of Record for grade recording, while document stores serve as read-optimized materialized views for instant transcript rendering.
     </p>
+
+    <p>
+      <strong>Distributed Architecture Trade-offs:</strong> Evaluating multi-AZ cloud deployments highlighted the fundamental CAP theorem constraints. Synchronous replication to a standby AZ guarantees RPO = 0 but introduces network transit latency on commit paths. Offloading read workloads to asynchronous replicas resolves web-tier contention but necessitates application-level mitigation (such as session pinning for grade submission workflows) to guarantee read-your-own-writes consistency.
+    </p>
+
+    <h3 style="margin-top: 10px; margin-bottom: 4px; font-size: 11px;">Portfolio Execution Summary Matrix</h3>
+    <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin: 4px 0 8px 0; background: #fafbfc;">
+      <thead>
+        <tr style="background: #003366; color: #ffffff; text-align: left;">
+          <th style="padding: 4px 7px; border: 1px solid #d0d7de;">Activity</th>
+          <th style="padding: 4px 7px; border: 1px solid #d0d7de;">Focus Area</th>
+          <th style="padding: 4px 7px; border: 1px solid #d0d7de;">Implementation Artifact</th>
+          <th style="padding: 4px 7px; border: 1px solid #d0d7de;">Empirical Outcome / Metric</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de; font-weight: 600;">Portfolio 1</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">Relational Design &amp; 3NF</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;"><code>schema.sql</code></td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">7 tables; composite PK <code>(student_id, offering_id)</code>; check constraints</td>
+        </tr>
+        <tr style="background: #f6f8fa;">
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de; font-weight: 600;">Portfolio 2</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">Query Optimisation &amp; GPA</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;"><code>roster.sql</code>, <code>gpa_calculation.sql</code></td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">Scan (3.88 ms) &rarr; Seek (0.46 ms, 8.4x speedup); GPA 4.00 / 5.00</td>
+        </tr>
+        <tr>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de; font-weight: 600;">Portfolio 3</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">Concurrency &amp; Transactions</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;"><code>run.py</code> (WAL suite)</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">Snapshot isolation &amp; repeatable read across commit confirmed; <code>SQLITE_BUSY</code> handled</td>
+        </tr>
+        <tr style="background: #f6f8fa;">
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de; font-weight: 600;">Portfolio 4</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">NoSQL &amp; Document Store</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">SQLite JSON extension</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">O(log N) B-tree seek (O(1) in Redis); <code>CHECK(json_valid(body))</code> syntax enforcement</td>
+        </tr>
+        <tr>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de; font-weight: 600;">Portfolio 5</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">Cloud High Availability</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">Architecture specification</td>
+          <td style="padding: 3px 6px; border: 1px solid #d0d7de;">Aurora Multi-AZ failover (RPO=0, RTO &lt; 60s); session pinning &amp; LSN causal tracking</td>
+        </tr>
+      </tbody>
+    </table>
+
   </div>
 
   <div class="avoid-break">

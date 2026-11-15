@@ -66,7 +66,7 @@ Running `EXPLAIN QUERY PLAN` with the covering index in place:
 
 - The access method changed from `SCAN` to `SEARCH ... USING COVERING INDEX`.
 - The query returns the exact same 500 rows.
-- Query latency is reduced by over 90% (benchmark results documented in `evidence.txt`).
+- Query latency is reduced by 88.2% (benchmark results documented in `evidence.txt`).
 
 ---
 
@@ -83,7 +83,7 @@ I implemented a comprehensive GPA calculation query in [`gpa_calculation.sql`](g
 
 $$\text{GPA} = \frac{\sum (\text{credits} \times \text{grade\_points})}{\sum \text{credits}}$$
 
-The query joins `registration`, `offering`, `course`, and `term` to compute total credits, total quality points, and the final semester GPA. Testing student 100 across 3 enrolled courses yielded a verified semester GPA of **4.62 / 5.00**.
+The query joins `registration`, `offering`, `course`, and `term` to compute total credits, total quality points, and the final semester GPA. Testing student 100 across 3 enrolled courses yielded a verified semester GPA of **4.00 / 5.00** (computed by hand as: (3 credits × 3 grade points [C] + 3 credits × 5 grade points [A] + 2 credits × 4 grade points [B]) / 8 total credits = 32.00 / 8.0 = 4.00).
 
 ---
 

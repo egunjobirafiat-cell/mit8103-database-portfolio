@@ -67,7 +67,7 @@ def run_gpa_calculation(db, student_id=100, term_id=1):
 
 
 def run_concurrency_test(db_path):
-    """Demonstrates snapshot isolation, lock contention, and rollback in SQLite WAL mode."""
+    """Demonstrates snapshot isolation, repeatable read across concurrent commit, lock contention, and rollback in SQLite WAL mode."""
     # Open two independent database connections
     writer = sqlite3.connect(db_path, isolation_level=None)
     reader = sqlite3.connect(db_path, timeout=0, isolation_level=None)
@@ -75,32 +75,45 @@ def run_concurrency_test(db_path):
     query = "SELECT score FROM registration WHERE student_id = 100 AND offering_id = 1"
     initial_score = reader.execute(query).fetchone()[0]
 
-    # Step 1: Writer starts a transaction and updates a grade
+    # Step 1: Reader opens an explicit read transaction (taking a point-in-time snapshot)
+    reader.execute("BEGIN")
+    score_in_snapshot = reader.execute(query).fetchone()[0]
+    assert score_in_snapshot == initial_score
+    print(f"Reader open transaction initial: {score_in_snapshot}")
+
+    # Step 2: Writer starts an immediate transaction and updates student 100's score
     writer.execute("BEGIN IMMEDIATE")
     writer.execute("UPDATE registration SET score = 85 WHERE student_id = 100 AND offering_id = 1")
 
-    # Step 2: Reader checks grade before writer commits (should see original uncommitted score)
-    score_during_uncommitted = reader.execute(query).fetchone()[0]
-    assert initial_score == score_during_uncommitted
-    print(f"Reader before commit: {score_during_uncommitted}")
-
-    # Step 3: Reader attempts concurrent write while writer holds write lock
+    # Step 3: Competing writer attempts write lock acquisition while writer holds write lock
+    competing_conn = sqlite3.connect(db_path, timeout=0, isolation_level=None)
     try:
-        reader.execute("BEGIN IMMEDIATE")
+        competing_conn.execute("BEGIN IMMEDIATE")
     except sqlite3.OperationalError as err:
         assert err.sqlite_errorcode == sqlite3.SQLITE_BUSY
         print(f"Competing writer: {err}")
     else:
-        reader.rollback()
+        competing_conn.rollback()
         raise AssertionError("Expected writer contention error")
+    finally:
+        competing_conn.close()
 
-    # Step 4: Writer commits, reader should now see the committed grade
+    # Step 4: Writer commits the grade update (85) to the WAL file
     writer.commit()
+
+    # Step 5: Reader queries AGAIN inside its STILL OPEN transaction
+    # True snapshot isolation: reader continues to observe the pre-commit snapshot (52)!
+    score_after_writer_commit = reader.execute(query).fetchone()[0]
+    assert score_after_writer_commit == initial_score
+    print(f"Reader open transaction after writer commit (snapshot preserved): {score_after_writer_commit}")
+
+    # Step 6: Reader closes transaction; fresh read now observes committed grade (85)
+    reader.commit()
     committed_score = reader.execute(query).fetchone()[0]
     assert committed_score == 85
-    print(f"Reader after commit: {committed_score}")
+    print(f"Reader fresh read after commit: {committed_score}")
 
-    # Step 5: Writer performs an update that gets rolled back
+    # Step 7: Writer performs an update that gets rolled back
     writer.execute("BEGIN IMMEDIATE")
     writer.execute("UPDATE registration SET score = 10 WHERE student_id = 100 AND offering_id = 1")
     writer.rollback()
@@ -207,6 +220,7 @@ def main():
         verify_constraint(db, "INSERT INTO registration VALUES (100, 1, 50)")                 # Duplicate PK
         verify_constraint(db, "UPDATE registration SET score = 101 WHERE student_id = 100")    # Score > 100 check
         verify_constraint(db, "INSERT INTO registration VALUES (50001, 1, 50)")               # Invalid foreign key
+        verify_constraint(db, "INSERT INTO course VALUES (99, 1, 'TEST99', 'Fractional Credits', 3.5)") # Fractional credits rejected
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
 
         # -------------------------------------------------------------
