@@ -5,15 +5,26 @@ Rejected: UNIQUE constraint failed: registration.student_id, registration.offeri
 Rejected: CHECK constraint failed: score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100)
 Rejected: FOREIGN KEY constraint failed
 Rejected: CHECK constraint failed: typeof(credits) = 'integer' AND credits BETWEEN 1 AND 6
+Rejected: Student already registered for this course and term
+Rejected: Student already registered for this course and term
+Rejected: Cannot change the course or term of an enrolled offering
+Student: Student 100 (ID: 100) | Term: 2026/2027 Semester 1
+Courses Taken: 3 | Total Credits: 8 | Quality Points: 32.00 | Semester GPA: 4.00 / 5.00
+Moving the existing enrolment between sections preserves the GPA
 
-2. Grade roster before indexing
+2. Baseline roster workloads
 Plan: [(4, 0, 218, 'SCAN registration USING INDEX sqlite_autoindex_registration_1')]
-Rows: 500; median: 3.964 ms
-First five rows: [(100, 52), (200, 51), (300, 50), (400, 49), (500, 48)]
+Rows: 500; median: 9.285 ms
+Plan: [(4, 0, 218, 'SCAN registration USING INDEX sqlite_autoindex_registration_1')]
+Rows: 49500; median: 122.020 ms
+500 grade updates; median: 0.458 ms
 
-Grade roster after indexing
+2. Indexed roster workloads
 Plan: [(3, 0, 56, 'SEARCH registration USING COVERING INDEX registration_roster (offering_id=?)')]
-Rows: 500; median: 0.467 ms
+Rows: 500; median: 0.767 ms
+Plan: [(3, 0, 56, 'SEARCH registration USING COVERING INDEX registration_roster (offering_id=?)')]
+Rows: 49500; median: 108.449 ms
+500 grade updates; median: 3.455 ms
 
 2b. Semester GPA Calculation (Student 100)
 Student: Student 100 (ID: 100) | Term: 2026/2027 Semester 1
@@ -21,10 +32,12 @@ Courses Taken: 3 | Total Credits: 8 | Quality Points: 32.00 | Semester GPA: 4.00
 
 3. Transactions and concurrency
 Reader open transaction initial: 52
+Four roster reads under an open write transaction returned the committed grades
 Competing writer: database is locked
 Reader open transaction after writer commit (snapshot preserved): 52
 Reader fresh read after commit: 85
-Reader after rollback: 85
+Rejected: CHECK constraint failed: score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100)
+Failed batch rolled back all grade changes: [(100, 85), (200, 51), (300, 50)]
 
 4. Document storage and retrieval
 {
@@ -51,9 +64,7 @@ Reader after rollback: 85
     }
   ]
 }
-Embedded course scores: [(85,)]
-
-Additional independent runs (before / after, ms):
-4.308 / 0.461
-4.040 / 0.452
-3.904 / 0.464
+Embedded course score: 85
+Rejected valid JSON with invalid transcript fields: Transcript requires a nonempty results array
+Rejected valid JSON with invalid transcript fields: Transcript score must be null or an integer from 0 to 100
+Grade correction refreshed the existing transcript from 85 to 90; retry kept one document

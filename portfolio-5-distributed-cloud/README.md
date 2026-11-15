@@ -45,3 +45,7 @@ If Riverside University scales to millions of historical academic records across
 1. **Managed Backups:** Aurora automated backups support point-in-time restore within the configured retention window.
 2. **Point-in-Time Recovery (PITR):** Enables restoring the database to any specific second within the retention window (e.g., restoring to 2 minutes before an accidental bulk grade overwrite).
 3. **Audit Immutability:** Historical grade updates trigger immutable audit records (`old_score`, `new_score`, `lecturer_id`, `timestamp`) written to an append-only audit table to satisfy accreditation and regulatory requirements.
+
+## 6. Proposed Failover Verification
+
+In a staging cluster with a writer and promotable reader in separate AZs, send numbered grade transactions and record their acknowledgements. Trigger a managed failover while the client retries through the cluster endpoint. Measure elapsed time until the first successful post-failover write and read, then verify that every acknowledged transaction is present. Record missing acknowledgements separately and reconcile them using the transaction IDs. This procedure measures application recovery and checks the scoped data-loss target.

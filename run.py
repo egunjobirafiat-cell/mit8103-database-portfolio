@@ -15,9 +15,12 @@ import json
 import time
 import sqlite3
 import statistics
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+from tempfile import TemporaryDirectory
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "riverside_test.db")
+
 
 
 def read_sql_file(relative_path):
@@ -27,11 +30,13 @@ def read_sql_file(relative_path):
         return f.read()
 
 
-def verify_constraint(db, sql_statement):
+def verify_constraint(db, sql_statement, expected=None):
     """Verifies that an invalid operation is blocked by database constraints."""
     try:
         db.execute(sql_statement)
     except sqlite3.IntegrityError as err:
+        if expected is not None:
+            assert expected in str(err), str(err)
         print(f"Rejected: {err}")
     else:
         raise AssertionError(f"Expected constraint violation for: {sql_statement}")
@@ -52,6 +57,24 @@ def benchmark_query(db, query, offering_id=1, runs=11):
     median_duration = statistics.median(durations)
     print(f"Plan: {plan}\nRows: {len(results)}; median: {median_duration:.3f} ms")
     return results, median_duration
+
+
+def benchmark_grade_updates(db, runs=11):
+    """Measure 500 grade updates per trial, excluding commit and rollback."""
+    durations = []
+    for _ in range(runs):
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            start = time.perf_counter()
+            updated = db.execute("""
+                UPDATE registration SET score = (score + 1) % 101
+                WHERE student_id BETWEEN 1 AND 500 AND offering_id IN (1, 2)
+            """).rowcount
+            durations.append((time.perf_counter() - start) * 1000)
+            assert updated == 500
+        finally:
+            db.rollback()
+    print(f"500 grade updates; median: {statistics.median(durations):.3f} ms")
 
 
 def run_gpa_calculation(db, student_id=100, term_id=1):
@@ -85,6 +108,18 @@ def run_concurrency_test(db_path):
     writer.execute("BEGIN IMMEDIATE")
     writer.execute("UPDATE registration SET score = 85 WHERE student_id = 100 AND offering_id = 1")
 
+    # Run independent roster reads while the writer keeps its transaction open.
+    roster_sql = read_sql_file("portfolio-2-query-optimisation/roster.sql")
+
+    def read_roster(_):
+        with closing(sqlite3.connect(db_path, timeout=0)) as connection:
+            return connection.execute(roster_sql, (1,)).fetchall()
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        rosters = list(pool.map(read_roster, range(4)))
+    assert all(len(roster) == 500 and roster[0] == (100, initial_score) for roster in rosters)
+    print("Four roster reads under an open write transaction returned the committed grades")
+
     # Step 3: Competing writer attempts write lock acquisition while writer holds write lock
     competing_conn = sqlite3.connect(db_path, timeout=0, isolation_level=None)
     try:
@@ -113,21 +148,35 @@ def run_concurrency_test(db_path):
     assert committed_score == 85
     print(f"Reader fresh read after commit: {committed_score}")
 
-    # Step 7: Writer performs an update that gets rolled back
+    batch_query = """
+        SELECT student_id, score FROM registration
+        WHERE offering_id = 1 AND student_id IN (100, 200, 300)
+        ORDER BY student_id
+    """
+    original = reader.execute(batch_query).fetchall()
     writer.execute("BEGIN IMMEDIATE")
-    writer.execute("UPDATE registration SET score = 10 WHERE student_id = 100 AND offering_id = 1")
-    writer.rollback()
-
-    rolled_back_score = reader.execute(query).fetchone()[0]
-    assert rolled_back_score == committed_score
-    print(f"Reader after rollback: {rolled_back_score}")
+    try:
+        writer.executemany(
+            "UPDATE registration SET score = 10 WHERE offering_id = 1 AND student_id = ?",
+            [(100,), (200,)],
+        )
+        assert writer.execute(batch_query).fetchall()[:2] == [(100, 10), (200, 10)]
+        verify_constraint(
+            writer,
+            "UPDATE registration SET score = 101 WHERE student_id = 300 AND offering_id = 1",
+            "CHECK constraint failed",
+        )
+    finally:
+        writer.rollback()
+    assert reader.execute(batch_query).fetchall() == original
+    print(f"Failed batch rolled back all grade changes: {original}")
 
     writer.close()
     reader.close()
 
 
-def run_document_model_test(relational_db):
-    """Transforms relational course results into a JSON document and performs embedded extraction."""
+def refresh_transcript(relational_db, doc_db, student_id, term_id):
+    """Rebuild the document from the current authoritative course results."""
     rows = relational_db.execute("""
         SELECT t.label, c.code, c.title, o.section, r.score
         FROM registration AS r
@@ -136,10 +185,15 @@ def run_document_model_test(relational_db):
         JOIN term AS t ON t.id = o.term_id
         WHERE r.student_id = ? AND t.id = ?
         ORDER BY c.code, o.section
-    """, (100, 1)).fetchall()
+    """, (student_id, term_id)).fetchall()
+
+    doc_key = f"student:{student_id}:term:{term_id}"
+    if not rows:
+        doc_db.execute("DELETE FROM transcript WHERE id = ?", (doc_key,))
+        return
 
     transcript_doc = {
-        "student_id": 100,
+        "student_id": student_id,
         "term": rows[0][0],
         "results": [
             {"course": code, "title": title, "section": section, "score": score}
@@ -147,7 +201,44 @@ def run_document_model_test(relational_db):
         ]
     }
 
-    # Store document in a dedicated table with JSON validation
+    store_transcript(doc_db, doc_key, transcript_doc)
+
+
+def store_transcript(doc_db, doc_key, document):
+    """Validate required fields and grade domains before publishing a document."""
+    if not isinstance(document, dict):
+        raise ValueError("Transcript must be a JSON object")
+    student_id = document.get("student_id")
+    term = document.get("term")
+    results = document.get("results")
+    if type(student_id) is not int or student_id < 1 or not isinstance(term, str) or not term.strip():
+        raise ValueError("Transcript requires a positive student ID and a term label")
+    if not isinstance(results, list) or not results:
+        raise ValueError("Transcript requires a nonempty results array")
+
+    courses = set()
+    for result in results:
+        if not isinstance(result, dict):
+            raise ValueError("Each transcript result must be an object")
+        course, title, section, score = (
+            result.get("course"), result.get("title"), result.get("section"), result.get("score")
+        )
+        if not isinstance(course, str) or not course.strip() or course in courses:
+            raise ValueError("Transcript course codes must be present and unique")
+        if not isinstance(title, str) or not title.strip() or type(section) is not int or section < 1:
+            raise ValueError("Transcript results require a title and a positive section number")
+        if "score" not in result or (score is not None and (type(score) is not int or not 0 <= score <= 100)):
+            raise ValueError("Transcript score must be null or an integer from 0 to 100")
+        courses.add(course)
+
+    doc_db.execute("""
+        INSERT INTO transcript (id, body) VALUES (?, ?)
+        ON CONFLICT(id) DO UPDATE SET body = excluded.body
+    """, (doc_key, json.dumps(document)))
+
+
+def run_document_model_test(relational_db):
+    """Publish, validate, and refresh a transcript after a grade correction."""
     doc_db = sqlite3.connect(":memory:")
     doc_db.execute("""
         CREATE TABLE transcript (
@@ -157,34 +248,47 @@ def run_document_model_test(relational_db):
     """)
 
     doc_key = "student:100:term:1"
-    doc_db.execute("INSERT INTO transcript VALUES (?, ?)", (doc_key, json.dumps(transcript_doc)))
+    refresh_transcript(relational_db, doc_db, 100, 1)
 
     # Retrieve full document
     body = doc_db.execute("SELECT body FROM transcript WHERE id = ?", (doc_key,)).fetchone()[0]
     print(json.dumps(json.loads(body), indent=2))
 
-    # Query embedded array directly using SQLite JSON functions
-    extracted = doc_db.execute("""
+    score_query = """
         SELECT json_extract(result.value, '$.score')
         FROM transcript, json_each(transcript.body, '$.results') AS result
         WHERE transcript.id = ? AND json_extract(result.value, '$.course') = ?
-    """, (doc_key, "MIT8103")).fetchall()
+    """
+    params = (doc_key, "MIT8103")
+    assert doc_db.execute(score_query, params).fetchall() == [(85,)]
+    print("Embedded course score: 85")
 
-    assert extracted == [(85,)]
-    print(f"Embedded course scores: {extracted}")
+    incomplete = {"student_id": 100, "term": "2026/2027 Semester 1"}
+    invalid_score = json.loads(body)
+    invalid_score["results"][0]["score"] = 101
+    for invalid in (incomplete, invalid_score):
+        try:
+            store_transcript(doc_db, doc_key, invalid)
+        except ValueError as error:
+            print(f"Rejected valid JSON with invalid transcript fields: {error}")
+        else:
+            raise AssertionError("Invalid transcript accepted")
+    assert doc_db.execute("SELECT body FROM transcript WHERE id = ?", (doc_key,)).fetchone() == (body,)
+
+    relational_db.execute("""
+        UPDATE registration SET score = 90 WHERE student_id = 100 AND offering_id = 1
+    """)
+    refresh_transcript(relational_db, doc_db, 100, 1)
+    assert doc_db.execute(score_query, params).fetchall() == [(90,)]
+    refresh_transcript(relational_db, doc_db, 100, 1)
+    assert doc_db.execute("SELECT count(*) FROM transcript").fetchone() == (1,)
+    assert doc_db.execute(score_query, params).fetchall() == [(90,)]
+    print("Grade correction refreshed the existing transcript from 85 to 90; retry kept one document")
     doc_db.close()
 
 
-def main():
-    # Clean up previous test database if it exists
-    if os.path.exists(DB_PATH):
-        try:
-            os.remove(DB_PATH)
-        except OSError:
-            pass
-
-    # Connect to local SQLite database
-    db = sqlite3.connect(DB_PATH, isolation_level=None)
+def run_portfolio(db_path):
+    db = sqlite3.connect(db_path, isolation_level=None)
 
     try:
         # Enable Write-Ahead Logging
@@ -221,32 +325,42 @@ def main():
         verify_constraint(db, "UPDATE registration SET score = 101 WHERE student_id = 100")    # Score > 100 check
         verify_constraint(db, "INSERT INTO registration VALUES (50001, 1, 50)")               # Invalid foreign key
         verify_constraint(db, "INSERT INTO course VALUES (99, 1, 'TEST99', 'Fractional Credits', 3.5)") # Fractional credits rejected
+        verify_constraint(db, "INSERT INTO registration VALUES (100, 2, 50)", "already registered")
+        verify_constraint(db, "UPDATE registration SET offering_id = 2 WHERE student_id = 100 AND offering_id = 3", "already registered")
+        verify_constraint(db, "UPDATE offering SET course_id = 3 WHERE id = 3", "enrolled offering")
+        db.execute("BEGIN")
+        db.execute("UPDATE registration SET offering_id = 2 WHERE student_id = 100 AND offering_id = 1")
+        assert run_gpa_calculation(db) == 4.0
+        db.rollback()
+        print("Moving the existing enrolment between sections preserves the GPA")
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
 
         # -------------------------------------------------------------
         # Portfolio 2: Query Optimisation & Covering Index
         # -------------------------------------------------------------
-        print("\n2. Grade roster before indexing")
         roster_sql = read_sql_file("portfolio-2-query-optimisation/roster.sql")
-        before_rows, before_time = benchmark_query(db, roster_sql)
-        print(f"First five rows: {before_rows[:5]}")
+        print("\n2. Baseline roster workloads")
+        selective_before, _ = benchmark_query(db, roster_sql, offering_id=1)
+        dense_before, _ = benchmark_query(db, roster_sql, offering_id=2)
+        benchmark_grade_updates(db)
 
-        # Add covering index
         db.execute("CREATE INDEX registration_roster ON registration(offering_id, student_id, score)")
 
-        print("\nGrade roster after indexing")
-        after_rows, after_time = benchmark_query(db, roster_sql)
-        assert before_rows == after_rows and len(after_rows) == 500
+        print("\n2. Indexed roster workloads")
+        selective_after, _ = benchmark_query(db, roster_sql, offering_id=1)
+        dense_after, _ = benchmark_query(db, roster_sql, offering_id=2)
+        benchmark_grade_updates(db)
+        assert selective_before == selective_after and len(selective_after) == 500
+        assert dense_before == dense_after and len(dense_after) == 49500
 
-        # Semester GPA Calculation
         print("\n2b. Semester GPA Calculation (Student 100)")
-        run_gpa_calculation(db, student_id=100, term_id=1)
+        assert run_gpa_calculation(db, student_id=100, term_id=1) == 4.0
 
         # -------------------------------------------------------------
         # Portfolio 3: Transactions & Concurrency
         # -------------------------------------------------------------
         print("\n3. Transactions and concurrency")
-        run_concurrency_test(DB_PATH)
+        run_concurrency_test(db_path)
 
         # -------------------------------------------------------------
         # Portfolio 4: NoSQL Document Model & Extraction
@@ -256,14 +370,11 @@ def main():
 
     finally:
         db.close()
-        # Clean up database files
-        for ext in ["", "-wal", "-shm"]:
-            f = DB_PATH + ext
-            if os.path.exists(f):
-                try:
-                    os.remove(f)
-                except OSError:
-                    pass
+
+
+def main():
+    with TemporaryDirectory(prefix="riverside-") as directory:
+        run_portfolio(os.path.join(directory, "riverside.db"))
 
 
 if __name__ == "__main__":

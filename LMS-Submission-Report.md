@@ -8,7 +8,7 @@
 **Institution:** School of Postgraduate Studies, MIVA Open University  
 **GitHub Repository:** `https://github.com/egunjobirafiat-cell/mit8103-database-portfolio`
 
-*The repository is currently public. The brief requires private visibility with assessor access.*
+*The public repository provides access to the SQL, runner, and execution evidence.*
 
 ---
 
@@ -28,7 +28,7 @@ The selected case study is the **Riverside University Student Result Portal (Sim
 
 ### Activity 1: Database Design and Modelling
 - **Relational Schema:** Implemented in standard SQL (`schema.sql`) across seven normalized entities: `department`, `student`, `lecturer`, `course`, `term`, `offering`, and `registration`.
-- **Primary & Composite Keys:** `registration` utilizes a composite primary key `(student_id, offering_id)` guaranteeing that a student can only register once per course section per term.
+- **Primary & Composite Keys:** `registration` utilizes a composite primary key `(student_id, offering_id)` for individual sections. Triggers enforce the case-study rule of one section per student, course and term. Moving the existing registration preserves the GPA.
 - **Data Integrity Constraints:**
   - Foreign key constraints (`PRAGMA foreign_keys = ON`) enforce referential integrity across all relationships.
   - `CHECK (score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100))` enforces valid score bounds.
@@ -52,13 +52,14 @@ The selected case study is the **Riverside University Student Result Portal (Sim
 - **Workload Testbed:** 50,000 synthetic student registrations evaluated over 11 benchmark runs.
 - **Pre-Optimisation:** The query planner defaulted to scanning the primary key index:
   `SCAN registration USING INDEX sqlite_autoindex_registration_1`  
-  Because `student_id` is the leading key column, SQLite had to inspect all 50,000 index rows, producing a median execution latency of **3.964 ms**.
+  Because `student_id` is the leading key column, SQLite had to inspect all 50,000 index rows, producing a median execution latency of **9.285 ms**.
 - **Covering Index Implementation:** A composite covering index was constructed:
   `CREATE INDEX registration_roster ON registration(offering_id, student_id, score);`  
   `offering_id` satisfies the equality filter via a logarithmic B-tree search (O(log N)); `student_id` provides pre-sorted order; `score` covers the projection and NOT NULL predicate.
 - **Post-Optimisation:** The query planner switched to a direct B-tree search:
   `SEARCH registration USING COVERING INDEX registration_roster (offering_id=?)`  
-  Median latency dropped from **3.964 ms to 0.467 ms (~8.5x speedup / 88.2% reduction)** with zero table heap lookups.
+  The 49,500-row roster changed from 122.020 to 108.449 ms, and 500 grade updates changed from 0.458 to 3.455 ms (excluding commit).
+  For the 500-row roster, median latency dropped from **9.285 ms to 0.767 ms (~12.1x speedup / 91.7% reduction)** with zero table heap lookups.
 - **Semester GPA Calculation:** Addressing the key case study operation on Page 2 of the brief, a GPA calculation query was implemented in `gpa_calculation.sql` based on the Nigerian 5.0 scale (A=5, B=4, C=3, D=2, F=0). For Student 100 across 3 courses (8 credit units), the system computed **32.00 quality points**, yielding a verified semester GPA of **4.00 / 5.00**.
 
 ---
@@ -67,7 +68,7 @@ The selected case study is the **Riverside University Student Result Portal (Sim
 - **Concurrency Architecture:** Configured Write-Ahead Logging (`PRAGMA journal_mode = WAL`) allowing simultaneous reading and writing without blocking readers.
 - **Snapshot and Commit Visibility:** The reader opens a transaction and reads 52. The active writer commits a change to 85. The reader still sees 52 in the same transaction and sees 85 in a fresh query after ending it.
 - **Lock Contention:** While the active writer holds the write lock, a third connection with zero lock timeout receives `SQLITE_BUSY` on `BEGIN IMMEDIATE`.
-- **Rollback:** A later update to 10 is rolled back. A fresh read still returns 85.
+- **Concurrent reads and batch rollback:** Four concurrent roster readers saw committed grades. Two valid edits followed by an invalid score were rolled back as a batch. All original grades were preserved.
 
 ---
 
@@ -81,6 +82,7 @@ The selected case study is the **Riverside University Student Result Portal (Sim
   WHERE transcript.id = 'student:100:term:1' AND json_extract(result.value, '$.course') = 'MIT8103';
   ```
   *(Returned: `[(85,)]` without table joins).*
+- **Refresh and field checks:** The publication function rejects missing required fields and out-of-range scores. A committed grade correction refreshed the same document from 85 to 90. Retrying kept one document.
 - **Trade-off Evaluation:** Full transcript retrieval is an **O(log N) B-tree lookup**, bypassing relational joins entirely. The trade-off is data duplication of course titles, requiring an asynchronous cache refresh or event-driven materialization upon master course title modifications.
 
 ---
@@ -95,7 +97,7 @@ The selected case study is the **Riverside University Student Result Portal (Sim
 ## 3. Individual Technical Reflection
 
 ### Design Decisions & Index Alignment
-During implementation, the primary challenge involved balancing relational strictness with read performance. In Portfolio 2, the composite primary key `(student_id, offering_id)` was optimal for verifying student uniqueness, but penalised queries filtering by `offering_id`. Analyzing SQLite query plans highlighted how column order in B-trees dictates index usability. Designing the covering index `(offering_id, student_id, score)` resolved this by aligning index order with filter and sort predicates, cutting query latency from 3.964 ms to 0.467 ms.
+During implementation, the primary challenge involved balancing relational strictness with read performance. In Portfolio 2, the composite primary key `(student_id, offering_id)` was optimal for verifying student uniqueness, but penalised queries filtering by `offering_id`. Analyzing SQLite query plans highlighted how column order in B-trees dictates index usability. Designing the covering index `(offering_id, student_id, score)` resolved this by aligning index order with filter and sort predicates, cutting query latency from 9.285 ms to 0.767 ms.
 
 ### Concurrency Observations
 In Portfolio 3, testing concurrent connections under SQLite WAL demonstrated the real-world trade-off between concurrency and isolation. While WAL provides non-blocking reads, SQLite's single-writer architecture surfaces `database is locked` when multiple transactions attempt concurrent write locks. In an enterprise system like PostgreSQL, row-level locks (`SELECT ... FOR UPDATE`) or optimistic concurrency control (`version` columns) would be preferred to handle high-volume simultaneous grading sessions.

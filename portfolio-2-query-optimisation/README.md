@@ -33,7 +33,7 @@ When running `EXPLAIN QUERY PLAN`:
 ```
 
 ### Why it required a full scan:
-Because `student_id` is the leading column in the composite primary key, SQLite cannot perform a direct B-tree search on `offering_id`. The engine is forced to scan through all 50,000 index entries to evaluate the `WHERE offering_id = 1` condition, and then fetch each matching row from the table to inspect `score`.
+Because `student_id` is the leading column in the composite primary key, SQLite cannot perform a direct B-tree search on `offering_id`. The engine is forced to scan through approximately 50,000 index entries to evaluate the `WHERE offering_id = 1` condition, and then fetch each matching row from the table to inspect `score`.
 
 - **Result Count:** 500 rows
 - **Execution Method:** Full index scan of 50,000 entries + table page lookups
@@ -66,7 +66,15 @@ Running `EXPLAIN QUERY PLAN` with the covering index in place:
 
 - The access method changed from `SCAN` to `SEARCH ... USING COVERING INDEX`.
 - The query returns the exact same 500 rows.
-- In the first fresh run, median latency fell from **3.964 ms to 0.467 ms** (88.2%). Across four fresh processes the baseline medians ranged from **3.904 to 4.308 ms**, and indexed medians ranged from **0.452 to 0.467 ms**. Each median represents 11 executions of the same selective roster query after an initial warm-up. See [evidence.txt](../evidence.txt). The [previous log](https://github.com/egunjobirafiat-cell/mit8103-database-portfolio/blob/df90653/evidence.txt) recorded a slower indexed median. Its cause is undetermined.
+### Recorded workload comparison
+
+| Workload | Baseline median | Indexed median |
+|---|---:|---:|
+| Roster returning 500 rows | 9.285 ms | 0.767 ms |
+| Roster returning 49,500 rows | 122.020 ms | 108.449 ms |
+| Batch of 500 grade updates | 0.458 ms | 3.455 ms |
+
+Each condition uses 11 timed trials. Roster measurements include fetching the full result and follow one warm-up query. The update measurement excludes transaction begin, commit and rollback, and each batch is rolled back to restore the fixture. Both roster result sets remained identical. The high-selectivity roster benefited most. Fetching the dense result continued to dominate its latency, and updates had to maintain the extra index. These are local timings with an unchanged trial order. See [current evidence](../evidence.txt) and [earlier selective-workload trials](https://github.com/egunjobirafiat-cell/mit8103-database-portfolio/blob/fa066dd/evidence.txt).
 
 ---
 
@@ -91,4 +99,4 @@ The query joins `registration`, `offering`, `course`, and `term` to compute tota
 
 - **Read Acceleration:** The covering index provides massive speedups for class rosters, audit reports, and grade reviews.
 - **Write Penalty:** A registration insert updates both indexes. A score-only update also updates the covering index because it includes `score`.
-- **Decision:** Because result portal rosters are viewed thousands of times during grading and audit periods compared to occasional grade submissions, the covering index provides an optimal cost-to-benefit ratio.
+- **Decision:** Because result portal rosters are viewed thousands of times during grading and audit periods compared to occasional grade submissions, the covering index is a reasonable choice for the tested selective roster.

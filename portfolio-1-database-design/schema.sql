@@ -68,6 +68,48 @@ CREATE TABLE registration (
     FOREIGN KEY (offering_id) REFERENCES offering(id)
 );
 
+CREATE TRIGGER registration_one_section_insert
+BEFORE INSERT ON registration
+WHEN EXISTS (
+    SELECT 1
+    FROM registration AS r
+    JOIN offering AS current ON current.id = r.offering_id
+    JOIN offering AS target ON target.id = NEW.offering_id
+    WHERE r.student_id = NEW.student_id
+      AND current.course_id = target.course_id
+      AND current.term_id = target.term_id
+      AND r.offering_id <> NEW.offering_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Student already registered for this course and term');
+END;
+
+CREATE TRIGGER registration_one_section_update
+BEFORE UPDATE OF student_id, offering_id ON registration
+WHEN EXISTS (
+    SELECT 1
+    FROM registration AS r
+    JOIN offering AS current ON current.id = r.offering_id
+    JOIN offering AS target ON target.id = NEW.offering_id
+    WHERE r.student_id = NEW.student_id
+      AND current.course_id = target.course_id
+      AND current.term_id = target.term_id
+      AND r.offering_id <> NEW.offering_id
+      AND (r.student_id <> OLD.student_id OR r.offering_id <> OLD.offering_id)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'Student already registered for this course and term');
+END;
+
+-- Preserve the enrolment rule when scheduling details change.
+CREATE TRIGGER offering_preserve_enrolled_course_term
+BEFORE UPDATE OF course_id, term_id ON offering
+WHEN (NEW.course_id <> OLD.course_id OR NEW.term_id <> OLD.term_id)
+ AND EXISTS (SELECT 1 FROM registration WHERE offering_id = OLD.id)
+BEGIN
+    SELECT RAISE(ABORT, 'Cannot change the course or term of an enrolled offering');
+END;
+
 -- -------------------------------------------------------------
 -- Baseline Seed Data
 -- -------------------------------------------------------------

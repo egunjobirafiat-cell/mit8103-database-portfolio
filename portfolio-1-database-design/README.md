@@ -83,7 +83,7 @@ The schema is defined in [`schema.sql`](schema.sql) using standard relational DD
 - `registration (student_id FK, offering_id FK, score CHECK (score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100)), PRIMARY KEY (student_id, offering_id))`
 
 ### Key Integrity Constraints:
-1. **Composite Primary Key:** In `registration`, the primary key is `(student_id, offering_id)`. This guarantees at the database engine level that a student cannot register more than once for the same class section. Separate sections of the same course may still be registered and would both count in the current GPA query. A one-section-per-course policy would require course-and-term uniqueness at enrolment.
+1. **Composite Primary Key:** In `registration`, the primary key is `(student_id, offering_id)`. This guarantees at the database engine level that a student cannot register more than once for the same class section. The case-study policy allows one section per student, course, and term. Triggers enforce this on registration inserts and updates. A student can transfer the existing registration to another section. An enrolled offering retains its course and term.
 2. **Grade Range Check:** Scores must be either `NULL` (when enrolled before grading) or an integer between 0 and 100:  
    `CHECK (score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100))`.
 3. **Credit Unit Validation:** Course credits must be realistic academic values: `CHECK (typeof(credits) = 'integer' AND credits BETWEEN 1 AND 6)`.

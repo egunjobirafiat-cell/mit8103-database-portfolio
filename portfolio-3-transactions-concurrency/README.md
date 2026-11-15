@@ -38,7 +38,7 @@ In WAL mode:
 
 The demonstration uses three connections. The reader opens a transaction and reads 52, establishing its snapshot. The active writer starts `BEGIN IMMEDIATE` and updates the grade to 85. A separate competing writer with a zero-second timeout receives `SQLITE_BUSY`.
 
-After the active writer commits, the reader still sees 52 within its open transaction. Once that transaction ends, a fresh read sees 85. A later update to 10 is rolled back and the grade remains 85.
+After the active writer commits, the reader still sees 52 within its open transaction. Once that transaction ends, a fresh read sees 85. Four worker connections also read the roster while the writer held its transaction open. All saw the committed grades. In a later batch, two valid updates were staged before a third failed its score check. An explicit rollback restored all three original grades.
 
 ```mermaid
 sequenceDiagram
@@ -51,11 +51,12 @@ sequenceDiagram
     Writer->>Writer: COMMIT
     Reader->>Reader: Read 52 in the open transaction
     Reader->>Reader: End transaction and read 85
-    Writer->>Writer: Update to 10 and ROLLBACK
-    Reader->>Reader: Fresh read returns 85
+    Writer->>Writer: Stage two valid grades and attempt an invalid grade
+    Writer->>Writer: ROLLBACK failed batch
+    Reader->>Reader: Verify all three original grades
 ```
 
-This demonstrates repeatable reads across a concurrent commit, single-writer contention, commit visibility, and rollback of one update. See [execution output](../evidence.txt).
+This demonstrates repeatable reads across a concurrent commit, single-writer contention, commit visibility, and rollback of the whole failed batch. See [execution output](../evidence.txt).
 
 ---
 

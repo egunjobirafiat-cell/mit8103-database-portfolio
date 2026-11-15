@@ -71,21 +71,13 @@ WHERE transcript.id = 'student:100:term:1'
 
 **Output from `run.py`:**
 ```text
-4. Document storage and retrieval
-{
-  "student_id": 100,
-  "term": "2026/2027 Semester 1",
-  "results": [
-    {
-      "course": "MIT8103",
-      "title": "Advanced Database Systems",
-      "section": 1,
-      "score": 85
-    }
-  ]
-}
-Embedded course scores: [(85,)]
+Embedded course score: 85
+Rejected valid JSON with invalid transcript fields: Transcript requires a nonempty results array
+Rejected valid JSON with invalid transcript fields: Transcript score must be null or an integer from 0 to 100
+Grade correction refreshed the existing transcript from 85 to 90; retry kept one document
 ```
+
+The Python publication function validates required fields and course score bounds before upserting the document. The SQLite check validates JSON syntax. The local demonstration commits the correction to the relational source and then rebuilds the transcript synchronously. For an asynchronous deployment, use a durable refresh event and monotonic source revisions to prevent an older refresh from replacing a newer result.
 
 ---
 
@@ -109,4 +101,4 @@ Embedded course scores: [(85,)]
 ### Recommended Production Architecture:
 In production, a **Polyglot Persistence** architecture is ideal:
 1. **Relational Database (e.g. PostgreSQL):** Serves as the authoritative **System of Record (SoR)** where lecturers enter grades and registry staff manage courses with strict ACID guarantees.
-2. **Document Cache (e.g. MongoDB, AWS DocumentDB, or PostgreSQL JSONB):** Once semester grades are locked and approved by the academic senate, an asynchronous worker pre-computes and materializes student transcripts into the document store. This gives students sub-millisecond transcript loading without impacting transactional grading systems.
+2. **Document Cache (e.g. MongoDB, AWS DocumentDB, or PostgreSQL JSONB):** Once semester grades are locked and approved by the academic senate, an asynchronous worker pre-computes and materializes student transcripts into the document store. This shifts repeated transcript reads away from the transactional model. Production performance would need to be measured.
