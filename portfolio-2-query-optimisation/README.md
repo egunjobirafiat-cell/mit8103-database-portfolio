@@ -74,7 +74,7 @@ Running `EXPLAIN QUERY PLAN` with the covering index in place:
 | Roster returning 49,500 rows | 122.020 ms | 108.449 ms |
 | Batch of 500 grade updates | 0.458 ms | 3.455 ms |
 
-Each condition uses 11 timed trials. Roster measurements include fetching the full result and follow one warm-up query. The update measurement excludes transaction begin, commit and rollback, and each batch is rolled back to restore the fixture. Both roster result sets remained identical. The high-selectivity roster benefited most. Fetching the dense result continued to dominate its latency, and updates had to maintain the extra index. These are local timings with an unchanged trial order. See [current evidence](../evidence.txt) and [earlier selective-workload trials](https://github.com/egunjobirafiat-cell/mit8103-database-portfolio/blob/fa066dd/evidence.txt).
+Each condition uses 11 timed trials. Roster measurements include fetching the full result and follow one warm-up query. The update measurement excludes transaction begin, commit and rollback, and each batch is rolled back to restore the fixture. Both roster result sets remained identical. A separate rerun measured 4.146 to 0.600 ms for the 500-row roster, 48.566 to 52.300 ms for the 49,500-row roster, and 0.393 to 0.834 ms for 500 grade updates. The index consistently helped selective reads and added update overhead. When nearly the entire table was returned, elapsed time varied despite the same covering-index plan. These are local timings with an unchanged trial order. See [current evidence](../evidence.txt) and [earlier selective-workload trials](https://github.com/egunjobirafiat-cell/mit8103-database-portfolio/blob/fa066dd/evidence.txt).
 
 ---
 

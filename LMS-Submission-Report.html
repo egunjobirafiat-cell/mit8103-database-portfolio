@@ -140,21 +140,21 @@
       body {
         margin: 0;
         padding: 0;
-        font-size: 10.8px;
-        line-height: 1.38;
+        font-size: 11.2px;
+        line-height: 1.42;
       }
       .header-card {
         margin-bottom: 8px;
       }
       h2 {
-        margin-top: 10px;
-        margin-bottom: 4px;
-        font-size: 12px;
+        margin-top: 13px;
+        margin-bottom: 6px;
+        font-size: 13px;
       }
       h3 {
-        margin-top: 7px;
-        margin-bottom: 3px;
-        font-size: 11px;
+        margin-top: 10px;
+        margin-bottom: 5px;
+        font-size: 12px;
       }
       pre {
         padding: 4px 7px;
@@ -226,20 +226,25 @@ Rejected: CHECK constraint failed: typeof(credits) = 'integer' AND credits BETWE
 <pre><code>Plan: [(4, 0, 218, 'SCAN registration USING INDEX sqlite_autoindex_registration_1')]
 Result: 500 rows | Median execution time (11 runs): 9.285 ms</code></pre>
       </li>
+    </ul>
+  </div>
+
+  <div class="page-break"></div>
+  <div class="avoid-break">
+    <h3>Activity 2 (continued): Covering Index and Semester GPA</h3>
+    <ul>
       <li><strong>Covering Index Design:</strong> Created a composite index: <code>CREATE INDEX registration_roster ON registration(offering_id, student_id, score);</code>. <code>offering_id</code> satisfies the equality filter via a logarithmic B-tree search (O(log N)); <code>student_id</code> satisfies the sort order; <code>score</code> covers the projection and NOT NULL predicate.</li>
       <li><strong>Optimised Execution:</strong> All requested attributes were satisfied directly from index leaf pages with zero table lookups:
 <pre><code>Plan: [(3, 0, 56, 'SEARCH registration USING COVERING INDEX registration_roster (offering_id=?)')]
 Result: 500 rows | Median execution time: 0.767 ms (~12.1x speedup / 91.7% latency reduction)</code></pre>
-    <p>In the same run, the 49,500-row roster changed from 122.020 to 108.449 ms. A batch of 500 grade updates changed from 0.458 to 3.455 ms, excluding commit. See <code>evidence.txt</code>.</p>
+    <p>The 49,500-row roster went from 122.020 to 108.449 ms in the recorded run and from 48.566 to 52.300 ms in a separate rerun. Both runs showed faster selective roster reads and slower batches of 500 grade updates (excluding commit). The index helps selective reads, adds update overhead, and gives variable results when the query returns almost the entire table.</p>
       </li>
-      <li><strong>Semester GPA Calculation:</strong> Addressing the key operation on Page 2 of the brief, a GPA calculation query was implemented in <code>gpa_calculation.sql</code> based on the Nigerian 5.0 scale (A=5, B=4, C=3, D=2, F=0). For Student 100 across 3 courses (8 credit units), the system computed <strong>32.00 quality points</strong>, yielding a verified semester GPA of <strong>4.00 / 5.00</strong>.</li>
+      <li>A GPA calculation query was implemented in <code>gpa_calculation.sql</code> based on the Nigerian 5.0 scale (A=5, B=4, C=3, D=2, F=0). For Student 100 across 3 courses (8 credit units), the system computed <strong>32.00 quality points</strong>, yielding a verified semester GPA of <strong>4.00 / 5.00</strong>.</li>
     </ul>
   </div>
 
   <div class="avoid-break">
-    <!-- ==================== PAGE 2 ==================== -->
-  <div class="page-break"></div>
-  <h3>Activity 3: Transactions and Concurrency</h3>
+    <h3>Activity 3: Transactions and Concurrency</h3>
     <p>
       Configured SQLite under Write-Ahead Logging (<code>PRAGMA journal_mode = WAL</code>) and tested concurrent database interactions using a snapshot reader, an active writer, and a competing writer with zero lock timeout.
     </p>

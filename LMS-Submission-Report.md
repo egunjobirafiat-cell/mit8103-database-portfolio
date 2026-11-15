@@ -58,7 +58,7 @@ The selected case study is the **Riverside University Student Result Portal (Sim
   `offering_id` satisfies the equality filter via a logarithmic B-tree search (O(log N)); `student_id` provides pre-sorted order; `score` covers the projection and NOT NULL predicate.
 - **Post-Optimisation:** The query planner switched to a direct B-tree search:
   `SEARCH registration USING COVERING INDEX registration_roster (offering_id=?)`  
-  The 49,500-row roster changed from 122.020 to 108.449 ms, and 500 grade updates changed from 0.458 to 3.455 ms (excluding commit).
+  The 49,500-row roster went from 122.020 to 108.449 ms in the recorded run and from 48.566 to 52.300 ms in a separate rerun. Both runs showed faster selective roster reads and slower batches of 500 grade updates (excluding commit). The index helps selective reads, adds update overhead, and gives variable results when the query returns almost the entire table.
   For the 500-row roster, median latency dropped from **9.285 ms to 0.767 ms (~12.1x speedup / 91.7% reduction)** with zero table heap lookups.
 - **Semester GPA Calculation:** Addressing the key case study operation on Page 2 of the brief, a GPA calculation query was implemented in `gpa_calculation.sql` based on the Nigerian 5.0 scale (A=5, B=4, C=3, D=2, F=0). For Student 100 across 3 courses (8 credit units), the system computed **32.00 quality points**, yielding a verified semester GPA of **4.00 / 5.00**.
 
