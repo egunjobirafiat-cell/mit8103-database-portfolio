@@ -6,8 +6,9 @@
 **Programme:** Master of Information Technology (MIT)  
 **Session / Semester:** 2026/2027 Academic Session — First Semester  
 **Institution:** School of Postgraduate Studies, MIVA Open University  
-**Private GitHub Repository:** `https://github.com/egunjobirafiat-cell/mit8103-database-portfolio`  
-*(Assessor access granted via private repository collaborator invitation)*
+**GitHub Repository:** `https://github.com/egunjobirafiat-cell/mit8103-database-portfolio`
+
+*The repository is currently public. The brief requires private visibility with assessor access.*
 
 ---
 
@@ -31,7 +32,7 @@ The selected case study is the **Riverside University Student Result Portal (Sim
 - **Data Integrity Constraints:**
   - Foreign key constraints (`PRAGMA foreign_keys = ON`) enforce referential integrity across all relationships.
   - `CHECK (score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100))` enforces valid score bounds.
-  - `CHECK (credits BETWEEN 1 AND 6)` and `CHECK (section > 0)` enforce academic course validity.
+  - `CHECK (typeof(credits) = 'integer' AND credits BETWEEN 1 AND 6)` and `CHECK (typeof(section) = 'integer' AND section > 0)` enforce academic course validity.
   - Natural composite uniqueness `UNIQUE (course_id, term_id, section)` prevents duplicate section assignments within a term.
 - **Normalisation (1NF to 3NF):** All attributes are atomic (1NF); the non-key attribute `score` depends fully on the composite key `{student_id, offering_id}` with no partial dependencies (2NF); departmental, course, and instructor metadata are isolated into reference entities to eliminate transitive dependencies (3NF).
 - **Practical Evidence:** Executing invalid insertions in `run.py` triggered explicit integrity rejections:
@@ -51,52 +52,50 @@ The selected case study is the **Riverside University Student Result Portal (Sim
 - **Workload Testbed:** 50,000 synthetic student registrations evaluated over 11 benchmark runs.
 - **Pre-Optimisation:** The query planner defaulted to scanning the primary key index:
   `SCAN registration USING INDEX sqlite_autoindex_registration_1`  
-  Because `student_id` is the leading key column, SQLite had to inspect all 50,000 index rows, producing a median execution latency of **3.876 ms**.
+  Because `student_id` is the leading key column, SQLite had to inspect all 50,000 index rows, producing a median execution latency of **3.964 ms**.
 - **Covering Index Implementation:** A composite covering index was constructed:
   `CREATE INDEX registration_roster ON registration(offering_id, student_id, score);`  
   `offering_id` satisfies the equality filter via a logarithmic B-tree search (O(log N)); `student_id` provides pre-sorted order; `score` covers the projection and NOT NULL predicate.
 - **Post-Optimisation:** The query planner switched to a direct B-tree search:
   `SEARCH registration USING COVERING INDEX registration_roster (offering_id=?)`  
-  Median latency dropped from **3.876 ms to 0.459 ms (~8.4x speedup / 88.2% reduction)** with zero table heap lookups.
+  Median latency dropped from **3.964 ms to 0.467 ms (~8.5x speedup / 88.2% reduction)** with zero table heap lookups.
 - **Semester GPA Calculation:** Addressing the key case study operation on Page 2 of the brief, a GPA calculation query was implemented in `gpa_calculation.sql` based on the Nigerian 5.0 scale (A=5, B=4, C=3, D=2, F=0). For Student 100 across 3 courses (8 credit units), the system computed **32.00 quality points**, yielding a verified semester GPA of **4.00 / 5.00**.
 
 ---
 
 ### Activity 3: Transactions and Concurrency
 - **Concurrency Architecture:** Configured Write-Ahead Logging (`PRAGMA journal_mode = WAL`) allowing simultaneous reading and writing without blocking readers.
-- **Multi-Connection Experimentation:** Two concurrent database connections (`writer` and `reader`) were evaluated under zero-timeout conditions:
-  1. **Snapshot Isolation:** While the writer initiated `BEGIN IMMEDIATE` and staged an uncommitted score change (from 52 to 85), the concurrent reader queried the record and consistently observed the original value (52), proving dirty reads are blocked.
-  2. **Lock Contention:** A simultaneous write attempt by the reader was rejected with `OperationalError: database is locked (SQLITE_BUSY)`, demonstrating engine-level write serialization.
-  3. **Durability & Visibility:** Following `writer.commit()`, the reader immediately observed the updated score (85).
-  4. **Atomicity & Rollback:** A subsequent uncommitted score change to 10 was terminated via `ROLLBACK`; the reader verified the score remained unchanged at 85.
+- **Snapshot and Commit Visibility:** The reader opens a transaction and reads 52. The active writer commits a change to 85. The reader still sees 52 in the same transaction and sees 85 in a fresh query after ending it.
+- **Lock Contention:** While the active writer holds the write lock, a third connection with zero lock timeout receives `SQLITE_BUSY` on `BEGIN IMMEDIATE`.
+- **Rollback:** A later update to 10 is rolled back. A fresh read still returns 85.
 
 ---
 
 ### Activity 4: NoSQL and Document Data Model
-- **Access Pattern Problem:** Rendering student transcripts in 3NF requires a four-table relational join (`registration` JOIN `offering` JOIN `course` JOIN `term`), which becomes a severe bottleneck during semester grade publication.
+- **Access Pattern Problem:** Rendering student transcripts in 3NF requires a four-table relational join (`registration` JOIN `offering` JOIN `course` JOIN `term`), which can increase load during semester grade publication.
 - **Document Model Solution:** Implemented a document collection (`transcript`) storing pre-materialized semester result documents in JSON format, identified by `student:{student_id}:term:{term_id}`.
-- **Schema Validation & Querying:** Validated via `CHECK (json_valid(body))`. Embedded array items were queried using SQLite's JSON functions:
+- **JSON Syntax Validation & Querying:** Validated via `CHECK (json_valid(body))`. Embedded array items were queried using SQLite's JSON functions:
   ```sql
   SELECT json_extract(result.value, '$.score')
   FROM transcript, json_each(transcript.body, '$.results') AS result
   WHERE transcript.id = 'student:100:term:1' AND json_extract(result.value, '$.course') = 'MIT8103';
   ```
   *(Returned: `[(85,)]` without table joins).*
-- **Trade-off Evaluation:** Full transcript retrieval is an **O(1) primary key point lookup**, bypassing relational joins entirely. The trade-off is data duplication of course titles, requiring an asynchronous cache refresh or event-driven materialization upon master course title modifications.
+- **Trade-off Evaluation:** Full transcript retrieval is an **O(log N) B-tree lookup**, bypassing relational joins entirely. The trade-off is data duplication of course titles, requiring an asynchronous cache refresh or event-driven materialization upon master course title modifications.
 
 ---
 
 ### Activity 5: Distributed and Cloud Database Architecture
-- **Multi-AZ High Availability:** Designed a cloud deployment using managed Multi-AZ database clustering (such as AWS Aurora / RDS) with a Primary instance in AZ-1 and a Synchronous Standby in AZ-2. Synchronous storage replication achieves zero data loss (Recovery Point Objective, RPO = 0), with automated failover in under 60 seconds (Recovery Time Objective, RTO < 60s).
-- **Read Scaling & Replication Lag:** Asynchronous read replicas offload transcript queries. To prevent the "read-your-own-writes" inconsistency where lecturers view stale grades immediately after submission, session-level routing directs immediate post-submission requests from lecturers to the Primary node for 5–10 seconds.
-- **Partitioning & Disaster Recovery:** Evaluated campus-level vs hash-based student sharding; recommended keeping active academic terms centralized on an Aurora cluster while archiving graduated terms into cold object storage. Continuous WAL streaming to Amazon S3 enables Point-in-Time Recovery (PITR).
+- **Multi-AZ High Availability:** Proposed Aurora PostgreSQL with an AZ-separated writer and promotable reader sharing storage replicated synchronously across three AZs. Target RPO = 0 for a single-AZ failure and RTO under 60 seconds with a promotable reader, subject to testing and application reconnection.
+- **Read Scaling & Replication Lag:** Readers serve transcript requests. After a grade commit, keep the instructor’s reads on the writer until a candidate reader can confirm it has applied the relevant change. Use the writer whenever catch-up cannot be confirmed.
+- **Partitioning & Disaster Recovery:** Evaluated campus-level vs hash-based student sharding; recommended keeping active academic terms centralized on an Aurora cluster while archiving graduated terms into cold object storage. Aurora automated backups support point-in-time recovery within the configured retention window.
 
 ---
 
 ## 3. Individual Technical Reflection
 
 ### Design Decisions & Index Alignment
-During implementation, the primary challenge involved balancing relational strictness with read performance. In Portfolio 2, the composite primary key `(student_id, offering_id)` was optimal for verifying student uniqueness, but penalised queries filtering by `offering_id`. Analyzing SQLite query plans highlighted how column order in B-trees dictates index usability. Designing the covering index `(offering_id, student_id, score)` resolved this by aligning index order with filter and sort predicates, cutting query latency from 3.876 ms to 0.459 ms.
+During implementation, the primary challenge involved balancing relational strictness with read performance. In Portfolio 2, the composite primary key `(student_id, offering_id)` was optimal for verifying student uniqueness, but penalised queries filtering by `offering_id`. Analyzing SQLite query plans highlighted how column order in B-trees dictates index usability. Designing the covering index `(offering_id, student_id, score)` resolved this by aligning index order with filter and sort predicates, cutting query latency from 3.964 ms to 0.467 ms.
 
 ### Concurrency Observations
 In Portfolio 3, testing concurrent connections under SQLite WAL demonstrated the real-world trade-off between concurrency and isolation. While WAL provides non-blocking reads, SQLite's single-writer architecture surfaces `database is locked` when multiple transactions attempt concurrent write locks. In an enterprise system like PostgreSQL, row-level locks (`SELECT ... FOR UPDATE`) or optimistic concurrency control (`version` columns) would be preferred to handle high-volume simultaneous grading sessions.

@@ -18,9 +18,9 @@ The selected case study is the **Riverside University Student Result Portal**, d
 
 ### Portfolio Activities Implemented:
 1. **Portfolio 1: Database Design and Modelling** — Relational schema across 7 entities, composite primary keys, check constraints, foreign keys, and 1NF to 3NF normalisation proof.
-2. **Portfolio 2: Query Processing and Optimisation** — Execution plan diagnostic analysis, composite covering index design, benchmark comparison (3.876 ms down to 0.459 ms), and semester GPA computation.
-3. **Portfolio 3: Transactions and Concurrency** — SQLite Write-Ahead Logging (WAL) mode demonstration verifying Snapshot Isolation, writer lock contention (`SQLITE_BUSY`), commit durability, and rollback atomicity.
-4. **Portfolio 4: NoSQL and Advanced Data Models** — Pre-computed JSON semester transcript document model, schema validation via `CHECK (json_valid(body))`, embedded query extraction, and polyglot persistence analysis.
+2. **Portfolio 2: Query Processing and Optimisation** — Execution plan diagnostic analysis, composite covering index design, benchmark comparison (3.964 ms down to 0.467 ms), and semester GPA computation.
+3. **Portfolio 3: Transactions and Concurrency** — SQLite Write-Ahead Logging (WAL) mode demonstration verifying Snapshot Isolation, writer lock contention (`SQLITE_BUSY`), commit visibility, and rollback atomicity.
+4. **Portfolio 4: NoSQL and Advanced Data Models** — Pre-computed JSON semester transcript document model, JSON syntax validation via `CHECK (json_valid(body))`, embedded query extraction, and polyglot persistence analysis.
 5. **Portfolio 5: Distributed and Cloud Database Architecture** — Multi-AZ high availability (RPO = 0, RTO < 60s), asynchronous read replica scaling, replication lag mitigation ("read-your-own-writes"), sharding trade-offs, and continuous WAL disaster recovery.
 
 ---
@@ -81,7 +81,7 @@ python run.py > evidence.txt
 | Portfolio Component | Technical Deliverable | Measured Outcome / Evidence |
 | :--- | :--- | :--- |
 | **Portfolio 1** | Schema Design & Normalisation | Active enforcement of composite PK `(student_id, offering_id)`, score check (`0 <= score <= 100`), and clean `PRAGMA foreign_key_check`. |
-| **Portfolio 2** | Query Optimisation & GPA | Covering index `(offering_id, student_id, score)` converted a 50,000-row index scan into a direct B-tree seek, reducing median latency from **3.876 ms to 0.459 ms (~8.4x speedup)**. Verified semester GPA: **4.00 / 5.00**. |
+| **Portfolio 2** | Query Optimisation & GPA | Covering index `(offering_id, student_id, score)` converted a 50,000-row index scan into a direct B-tree seek, reducing median latency from **3.964 ms to 0.467 ms (~8.5x speedup)**. Verified semester GPA: **4.00 / 5.00**. |
 | **Portfolio 3** | Concurrency & Transactions | Verified SQLite WAL Snapshot Isolation (uncommitted writes invisible to readers), single-writer lock serialization (`database is locked`), and rollback atomicity. |
-| **Portfolio 4** | Document Store & NoSQL | Validated JSON transcripts with `CHECK(json_valid(body))`. Document retrieval is an O(1) primary key lookup, eliminating 4-table relational joins. |
-| **Portfolio 5** | Distributed Cloud Architecture | Multi-AZ cloud database design achieving zero data loss (RPO = 0) and automated failover in under 60 seconds (RTO < 60s), with session pinning for replication lag mitigation. |
+| **Portfolio 4** | Document Store & NoSQL | Validated JSON transcripts with `CHECK(json_valid(body))`. Document retrieval is an O(log N) B-tree lookup, eliminating 4-table relational joins. |
+| **Portfolio 5** | Distributed Cloud Architecture | Proposed Aurora PostgreSQL design targeting RPO = 0 for a single-AZ failure and RTO under 60 seconds, with primary routing for immediate post-write reads. |

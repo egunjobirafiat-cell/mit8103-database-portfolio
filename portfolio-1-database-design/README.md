@@ -77,16 +77,16 @@ The schema is defined in [`schema.sql`](schema.sql) using standard relational DD
 - `department (id PK, name NOT NULL UNIQUE)`
 - `student (id PK, department_id FK, name NOT NULL)`
 - `lecturer (id PK, department_id FK, name NOT NULL)`
-- `course (id PK, department_id FK, code NOT NULL UNIQUE, title NOT NULL, credits NOT NULL CHECK (credits BETWEEN 1 AND 6))`
+- `course (id PK, department_id FK, code NOT NULL UNIQUE, title NOT NULL, credits NOT NULL CHECK (typeof(credits) = 'integer' AND credits BETWEEN 1 AND 6))`
 - `term (id PK, label NOT NULL UNIQUE)`
-- `offering (id PK, course_id FK, term_id FK, lecturer_id FK, section NOT NULL CHECK (section > 0), UNIQUE (course_id, term_id, section))`
+- `offering (id PK, course_id FK, term_id FK, lecturer_id FK, section NOT NULL CHECK (typeof(section) = 'integer' AND section > 0), UNIQUE (course_id, term_id, section))`
 - `registration (student_id FK, offering_id FK, score CHECK (score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100)), PRIMARY KEY (student_id, offering_id))`
 
 ### Key Integrity Constraints:
-1. **Composite Primary Key:** In `registration`, the primary key is `(student_id, offering_id)`. This guarantees at the database engine level that a student cannot register more than once for the same class section.
+1. **Composite Primary Key:** In `registration`, the primary key is `(student_id, offering_id)`. This guarantees at the database engine level that a student cannot register more than once for the same class section. Separate sections of the same course may still be registered and would both count in the current GPA query. A one-section-per-course policy would require course-and-term uniqueness at enrolment.
 2. **Grade Range Check:** Scores must be either `NULL` (when enrolled before grading) or an integer between 0 and 100:  
    `CHECK (score IS NULL OR (typeof(score) = 'integer' AND score BETWEEN 0 AND 100))`.
-3. **Credit Unit Validation:** Course credits must be realistic academic values: `CHECK (credits BETWEEN 1 AND 6)`.
+3. **Credit Unit Validation:** Course credits must be realistic academic values: `CHECK (typeof(credits) = 'integer' AND credits BETWEEN 1 AND 6)`.
 4. **Offering Uniqueness:** `UNIQUE (course_id, term_id, section)` prevents duplicate section numbers for the same course in the same semester.
 5. **Referential Integrity:** `PRAGMA foreign_keys = ON` enforces that registrations must link to valid students and offerings.
 

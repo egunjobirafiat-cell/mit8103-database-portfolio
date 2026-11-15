@@ -34,43 +34,28 @@ In WAL mode:
 
 ---
 
-## 3. Two-Connection Concurrency Demonstration
+## 3. Three-Connection Concurrency Demonstration
 
-In `run.py`, two independent SQLite connections (`writer` and `reader`) were configured with `timeout = 0` to observe concurrency boundaries:
+The demonstration uses three connections. The reader opens a transaction and reads 52, establishing its snapshot. The active writer starts `BEGIN IMMEDIATE` and updates the grade to 85. A separate competing writer with a zero-second timeout receives `SQLITE_BUSY`.
+
+After the active writer commits, the reader still sees 52 within its open transaction. Once that transaction ends, a fresh read sees 85. A later update to 10 is rolled back and the grade remains 85.
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    actor Writer as Connection A (Lecturer / Writer)
-    actor Reader as Connection B (Student / Reader)
-    participant DB as SQLite Engine (WAL Mode)
-
-    Writer->>DB: BEGIN IMMEDIATE
-    Writer->>DB: UPDATE registration SET score = 85 WHERE student_id = 100
-    Note over Writer,DB: Dirty write staged in WAL buffer (uncommitted)
-    Reader->>DB: SELECT score FROM registration WHERE student_id = 100
-    DB-->>Reader: Returns 52 (Snapshot Isolation: dirty write invisible)
-    Reader->>DB: BEGIN IMMEDIATE (Attempt concurrent write)
-    DB-->>Reader: ERROR: SQLITE_BUSY (database is locked)
-    Writer->>DB: COMMIT
-    Reader->>DB: SELECT score FROM registration WHERE student_id = 100
-    DB-->>Reader: Returns 85 (Committed write now visible)
-    Writer->>DB: BEGIN IMMEDIATE
-    Writer->>DB: UPDATE registration SET score = 10 WHERE student_id = 100
-    Writer->>DB: ROLLBACK (Simulated abort)
-    Reader->>DB: SELECT score FROM registration WHERE student_id = 100
-    DB-->>Reader: Returns 85 (Atomicity: rolled-back write discarded)
+    participant Reader
+    participant Writer
+    participant Competitor as Competing writer
+    Reader->>Reader: BEGIN and read 52
+    Writer->>Writer: BEGIN IMMEDIATE and update to 85
+    Competitor->>Competitor: BEGIN IMMEDIATE returns SQLITE_BUSY
+    Writer->>Writer: COMMIT
+    Reader->>Reader: Read 52 in the open transaction
+    Reader->>Reader: End transaction and read 85
+    Writer->>Writer: Update to 10 and ROLLBACK
+    Reader->>Reader: Fresh read returns 85
 ```
 
-### Analysis of the Results:
-1. **Snapshot Isolation (Score: 52):**  
-   While Connection A held an uncommitted update changing the score from 52 to 85, Connection B queried the score and observed 52. This proves that dirty reads are prevented.
-2. **Writer Lock Contention (`database is locked`):**  
-   When Connection B attempted `BEGIN IMMEDIATE` while Connection A held the write lock, the database engine actively raised `OperationalError: database is locked` (`SQLITE_BUSY`).
-3. **Commit Visibility (Score: 85):**  
-   Immediately following `writer.commit()`, the reader queried again and observed the committed score of 85.
-4. **Atomicity and Rollback Verification (Score: 85):**  
-   Connection A began another transaction, updated the score to 10, and issued `ROLLBACK`. The reader confirmed that the score remained 85, proving complete rollback atomicity.
+This demonstrates repeatable reads across a concurrent commit, single-writer contention, commit visibility, and rollback of one update. See [execution output](../evidence.txt).
 
 ---
 
@@ -79,4 +64,4 @@ sequenceDiagram
 While SQLite WAL mode works well for local testing and lightweight applications, a full-scale university portal with thousands of concurrent lecturers and students requires an enterprise database engine such as **PostgreSQL**:
 - **Row-Level Locking:** In PostgreSQL, multiple lecturers can submit grades for different courses simultaneously (`SELECT ... FOR UPDATE`) without blocking one another.
 - **Connection Pooling & Busy Timeout:** Production servers configure connection pools (e.g., PgBouncer) and exponential backoff retry loops rather than letting queries fail immediately on contention.
-- **Optimistic Concurrency Control (OCC):** Storing a `version` or `updated_at` column on grade records allows client applications to detect write-skew without long-held locks.
+- **Optimistic Concurrency Control (OCC):** Storing a `version` or `updated_at` column on grade records allows client applications to detect conflicting edits to the same grade without long-held locks.

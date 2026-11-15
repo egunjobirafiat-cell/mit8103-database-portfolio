@@ -50,7 +50,7 @@ Rather than distributing student marks across separate tables, all course result
 
 ## 3. Implementation in SQLite
 
-Using SQLite's built-in JSON1 extension, a dedicated `transcript` document store was created with structural JSON validation:
+Using SQLite's built-in JSON1 extension, a dedicated `transcript` document store was created with JSON syntax validation:
 
 ```sql
 CREATE TABLE transcript (
@@ -91,7 +91,7 @@ Embedded course scores: [(85,)]
 
 ## 4. Query Complexity and Performance Analysis
 
-- **Full Transcript Retrieval:** Fetching an entire student transcript (`SELECT body FROM transcript WHERE id = ?`) is a direct primary key B-tree index seek (O(log N) in SQLite; O(1) in dedicated key-value caches like Redis). It retrieves the complete pre-rendered result slip in a single read operation, completely bypassing relational joins.
+- **Full Transcript Retrieval:** Fetching an entire student transcript (`SELECT body FROM transcript WHERE id = ?`) is a direct primary key B-tree index seek in SQLite (O(log N)). It retrieves the complete pre-rendered result slip in a single read operation, completely bypassing relational joins.
 - **Embedded Array Filtering:** Querying a specific course mark inside the document via `json_extract()` and `json_each()` performs an in-memory scan of that individual student's courses (typically 4–6 courses per term), which is computationally trivial compared to joining 50,000-row relational tables.
 
 ---

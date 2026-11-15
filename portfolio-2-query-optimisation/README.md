@@ -66,7 +66,7 @@ Running `EXPLAIN QUERY PLAN` with the covering index in place:
 
 - The access method changed from `SCAN` to `SEARCH ... USING COVERING INDEX`.
 - The query returns the exact same 500 rows.
-- Query latency is reduced by 88.2% (benchmark results documented in `evidence.txt`).
+- In the first fresh run, median latency fell from **3.964 ms to 0.467 ms** (88.2%). Across four fresh processes the baseline medians ranged from **3.904 to 4.308 ms**, and indexed medians ranged from **0.452 to 0.467 ms**. Each median represents 11 executions of the same selective roster query after an initial warm-up. See [evidence.txt](../evidence.txt). The [previous log](https://github.com/egunjobirafiat-cell/mit8103-database-portfolio/blob/df90653/evidence.txt) recorded a slower indexed median. Its cause is undetermined.
 
 ---
 
@@ -90,5 +90,5 @@ The query joins `registration`, `offering`, `course`, and `term` to compute tota
 ## 6. Indexing Trade-offs in Production
 
 - **Read Acceleration:** The covering index provides massive speedups for class rosters, audit reports, and grade reviews.
-- **Write Penalty:** Every `INSERT` of a course registration or `UPDATE` of a score requires modifying both the primary key B-tree and the `registration_roster` index B-tree.
+- **Write Penalty:** A registration insert updates both indexes. A score-only update also updates the covering index because it includes `score`.
 - **Decision:** Because result portal rosters are viewed thousands of times during grading and audit periods compared to occasional grade submissions, the covering index provides an optimal cost-to-benefit ratio.
